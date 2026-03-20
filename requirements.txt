@@ -1,0 +1,5 @@
+Django>=5.2,<5.3
+django-allauth>=65.0
+cloudinary>=1.0
+django-cloudinary-storage>=0.3
+Pillow>=10.0
