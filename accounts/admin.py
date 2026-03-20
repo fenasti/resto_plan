@@ -1,3 +1,3 @@
 from django.contrib import admin
 
-# Register your models here.
+# Intentionally empty: use in-app platform screen to grant staff. Admin site can remain unused.

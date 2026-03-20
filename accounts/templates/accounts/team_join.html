@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <h2>Join Workspace</h2>
+
+  <form method="post" class="card card-body mt-3">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label class="form-label">Join code</label>
+      {{ form.join_code }}
+    </div>
+    <button class="btn btn-primary" type="submit">Join</button>
+    <a class="btn btn-link" href="{% url 'accounts:team_select' %}">Back</a>
+  </form>
+</div>
+{% endblock %}

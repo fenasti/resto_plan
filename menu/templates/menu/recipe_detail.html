@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load menu_extras %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center">
+    <h2>{{ recipe.name }}</h2>
+    {% if active_membership and active_membership.can_manage_recipes %}
+      <a class="btn btn-outline-primary" href="{% url 'menu:recipe_edit' recipe.pk %}">Edit</a>
+    {% endif %}
+  </div>
+
+  <h5 class="mt-4">Ingredients</h5>
+  <ul class="list-group">
+    {% for line in recipe.ingredients_text|splitlines %}
+      <li class="list-group-item">{{ line }}</li>
+    {% empty %}
+      <li class="list-group-item">No ingredients.</li>
+    {% endfor %}
+  </ul>
+
+  {% if recipe.steps_text|trim %}
+    <h5 class="mt-4">Steps</h5>
+    <ol class="list-group list-group-numbered">
+      {% for step in recipe.steps_text|splitlines %}
+        <li class="list-group-item">{{ step }}</li>
+      {% endfor %}
+    </ol>
+  {% endif %}
+</div>
+{% endblock %}

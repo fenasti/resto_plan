@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h2>Plan Builder</h2>
+      <div class="text-muted">{{ plan.service_date }} — {{ plan.state }}</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'planning:plan_sheet' plan.service_date %}">Back to Sheet</a>
+  </div>
+
+  {% if plan.state != "DRAFT" %}
+    <div class="alert alert-warning mt-3">Plan is in PRODUCTION. Builder is locked.</div>
+  {% endif %}
+
+  <form id="builder-form" method="post" class="card card-body mt-3">
+    {% csrf_token %}
+    <input type="hidden" name="action" id="builder-action" value="save">
+
+    <h5>Select dishes (on_use preselected by default)</h5>
+    <div class="row">
+      <div class="col-md-8">
+        {{ form.dishes }}
+      </div>
+    </div>
+
+    <div class="mt-4 d-flex flex-wrap gap-2">
+      <button class="btn btn-primary" type="submit" onclick="document.getElementById('builder-action').value='save'">
+        Save Draft
+      </button>
+
+      {% if plan.state == "DRAFT" %}
+        <button class="btn btn-outline-warning" type="button"
+                data-bs-toggle="modal" data-bs-target="#confirmModal"
+                data-confirm-title="Refresh placeholders"
+                data-confirm-body="Hard reset: this will erase current task statuses, assignees, and notes."
+                data-confirm-submit="Refresh"
+                data-confirm-form="builder-form"
+                data-confirm-action="refresh">
+          Refresh (hard reset)
+        </button>
+
+        <button class="btn btn-success" type="button"
+                data-bs-toggle="modal" data-bs-target="#confirmModal"
+                data-confirm-title="Finalize plan"
+                data-confirm-body="After finalizing, you cannot edit dishes. Production mode enables row-tap claim + done."
+                data-confirm-submit="Finalize"
+                data-confirm-form="builder-form"
+                data-confirm-action="finalize">
+          Finalize
+        </button>
+
+        <button class="btn btn-danger" type="button"
+                data-bs-toggle="modal" data-bs-target="#confirmModal"
+                data-confirm-title="Erase plan"
+                data-confirm-body="This will permanently delete the plan."
+                data-confirm-submit="Erase"
+                data-confirm-form="builder-form"
+                data-confirm-action="erase">
+          Erase
+        </button>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

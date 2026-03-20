@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h2>Prep Sheet</h2>
+      <div class="text-muted">{{ plan.service_date }} — {{ plan.state }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      {% if plan.state == "DRAFT" %}
+        <a class="btn btn-outline-secondary" href="{% url 'planning:plan_builder' plan.service_date %}">Edit Sheet</a>
+
+        <button class="btn btn-outline-warning" type="button"
+                data-bs-toggle="modal" data-bs-target="#confirmModal"
+                data-confirm-title="Refresh placeholders"
+                data-confirm-body="Hard reset: this will erase current task statuses, assignees, and notes."
+                data-confirm-submit="Refresh"
+                data-confirm-post="{% url 'planning:plan_refresh' plan.service_date %}">
+          Refresh
+        </button>
+
+        <button class="btn btn-success" type="button"
+                data-bs-toggle="modal" data-bs-target="#confirmModal"
+                data-confirm-title="Finalize plan"
+                data-confirm-body="After finalizing, you cannot edit dishes. Production mode enables row-tap claim + done."
+                data-confirm-submit="Finalize"
+                data-confirm-post="{% url 'planning:plan_finalize' plan.service_date %}">
+          Finalize
+        </button>
+
+        <button class="btn btn-danger" type="button"
+                data-bs-toggle="modal" data-bs-target="#confirmModal"
+                data-confirm-title="Erase plan"
+                data-confirm-body="This will permanently delete the plan."
+                data-confirm-submit="Erase"
+                data-confirm-post="{% url 'planning:plan_erase' plan.service_date %}">
+          Erase
+        </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="mt-4">
+    {% for group in groups %}
+      <div class="mb-4">
+        <h4 class="mb-2">{{ group.dish.name }}</h4>
+        <div class="list-group">
+          {% for task in group.tasks %}
+            {% include "planning/partials/task_row.html" with task=task %}
+          {% endfor %}
+        </div>
+      </div>
+    {% empty %}
+      <p>No tasks.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

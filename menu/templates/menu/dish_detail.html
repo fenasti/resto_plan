@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center">
+    <h2>{{ dish.name }}</h2>
+    {% if active_membership and active_membership.can_manage_menu %}
+      <a class="btn btn-outline-secondary" href="{% url 'menu:dish_components_edit' dish.pk %}">Edit Components</a>
+    {% endif %}
+  </div>
+
+  <h5 class="mt-4">Components</h5>
+  <ul class="list-group">
+    {% for dc in dish.dish_components.all %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <span>
+          {{ dc.order }}. {{ dc.component.name }}
+          {% if dc.component.recipe_id %}
+            <a class="ms-2 text-decoration-none" href="{% url 'menu:recipe_detail' dc.component.recipe_id %}">
+              <i class="bi bi-journal-text"></i>
+            </a>
+          {% endif %}
+          {% if dc.component.spec_text %}
+            <small class="text-muted ms-2">{{ dc.component.spec_text }}</small>
+          {% endif %}
+        </span>
+        {% if dc.template_note %}
+          <small class="text-muted">{{ dc.template_note }}</small>
+        {% endif %}
+      </li>
+    {% empty %}
+      <li class="list-group-item">No components assigned.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

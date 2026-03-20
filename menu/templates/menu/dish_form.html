@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <h2>{% if view.object %}Edit Dish{% else %}Create Dish{% endif %}</h2>
+  <form method="post" class="card card-body mt-3">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label class="form-label">Name</label>
+      {{ form.name }}
+    </div>
+    <div class="form-check mb-3">
+      {{ form.on_use }}
+      <label class="form-check-label">on_use</label>
+    </div>
+    <button class="btn btn-primary" type="submit">Save</button>
+  </form>
+</div>
+{% endblock %}

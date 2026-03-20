@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <h2>Profile</h2>
+
+  <div class="row mt-3">
+    <div class="col-md-6">
+      <form method="post" enctype="multipart/form-data" class="card card-body">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label">Display name</label>
+          {{ form.display_name }}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Avatar</label>
+          <input class="form-control" type="file" name="avatar">
+          {% if request.user.cookprofile.avatar %}
+            <div class="mt-2">
+              <img src="{{ request.user.cookprofile.avatar.url }}" class="rounded-circle" width="64" height="64" alt="avatar">
+            </div>
+          {% endif %}
+        </div>
+
+        <button class="btn btn-primary" type="submit">Save</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

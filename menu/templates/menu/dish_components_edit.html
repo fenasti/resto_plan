@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <h2>Edit Components: {{ dish.name }}</h2>
+
+  <form method="post" class="card card-body mt-3">
+    {% csrf_token %}
+    {{ formset.management_form }}
+
+    <div class="table-responsive">
+      <table class="table align-middle">
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th style="width:140px;">Order</th>
+            <th>Note</th>
+            <th>Delete</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for form in formset %}
+            <tr>
+              <td>{{ form.component }}</td>
+              <td>{{ form.order }}</td>
+              <td>{{ form.template_note }}</td>
+              <td>{{ form.DELETE }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <button class="btn btn-primary" type="submit">Save</button>
+    <a class="btn btn-secondary" href="{% url 'menu:dish_detail' dish.pk %}">Back</a>
+  </form>
+</div>
+{% endblock %}

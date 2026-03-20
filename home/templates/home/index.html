@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <h1 class="mb-2">Prep App</h1>
+  <div class="text-muted mb-4">Workspace: <strong>{{ active_team.name }}</strong></div>
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      <a class="card text-decoration-none" href="{% url 'planning:plan_list' %}">
+        <div class="card-body">
+          <h5 class="card-title">View Prep Lists</h5>
+          <p class="card-text">Browse plans by date.</p>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-4">
+      <a class="card text-decoration-none" href="{% url 'planning:create_tomorrow' %}">
+        <div class="card-body">
+          <h5 class="card-title">Create Prep List</h5>
+          <p class="card-text">Creates/opens tomorrow builder.</p>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-4">
+      <a class="card text-decoration-none" href="{% url 'menu:dish_list' %}">
+        <div class="card-body">
+          <h5 class="card-title">Menu Items (Dishes)</h5>
+          <p class="card-text">Team-scoped dishes & components.</p>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-4">
+      <a class="card text-decoration-none" href="{% url 'menu:recipe_list' %}">
+        <div class="card-body">
+          <h5 class="card-title">Recipes</h5>
+          <p class="card-text">Visible to everyone in the team.</p>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-4">
+      <a class="card text-decoration-none" href="{% url 'accounts:profile' %}">
+        <div class="card-body">
+          <h5 class="card-title">Profile</h5>
+          <p class="card-text">Edit avatar and display name.</p>
+        </div>
+      </a>
+    </div>
+
+    {% if request.user.is_staff %}
+    <div class="col-md-4">
+      <a class="card text-decoration-none" href="{% url 'accounts:team_create' %}">
+        <div class="card-body">
+          <h5 class="card-title">Create Workspace</h5>
+          <p class="card-text">Platform admins can create teams.</p>
+        </div>
+      </a>
+    </div>
+    {% endif %}
+
+    {% if active_membership and (active_membership.can_manage_team or active_membership.role != "MEMBER") %}
+    <div class="col-md-4">
+      <a class="card text-decoration-none" href="{% url 'accounts:team_manage' %}">
+        <div class="card-body">
+          <h5 class="card-title">Manage Team</h5>
+          <p class="card-text">Roles, permissions, join code rotation.</p>
+        </div>
+      </a>
+    </div>
+    {% endif %}
+
+    {% if request.user.is_staff %}
+    <div class="col-md-4">
+      <a class="card text-decoration-none" href="{% url 'accounts:platform_users' %}">
+        <div class="card-body">
+          <h5 class="card-title">Platform Users</h5>
+          <p class="card-text">Grant/revoke platform admin (is_staff).</p>
+        </div>
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

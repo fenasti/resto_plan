@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <h2>Platform Users</h2>
+  <p class="text-muted">Grant/revoke platform admin (is_staff) without using Django admin.</p>
+
+  <div class="table-responsive mt-3">
+    <table class="table align-middle">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>is_staff</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.username }}</td>
+          <td>{% if u.is_staff %}✅{% else %}☐{% endif %}</td>
+          <td>
+            <form method="post" class="d-flex gap-2 align-items-center">
+              {% csrf_token %}
+              <input type="hidden" name="user_id" value="{{ u.id }}">
+              <input type="checkbox" name="make_staff" class="form-check-input" {% if u.is_staff %}checked{% endif %}>
+              <button class="btn btn-sm btn-outline-primary" type="submit">Update</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="{% url 'home:index' %}">Prep</a>
+  
+      <div class="ms-auto d-flex gap-2 align-items-center">
+        {% if request.user.is_authenticated %}
+          {% if active_team %}
+            <span class="badge text-bg-secondary">Team: {{ active_team.name }}</span>
+            <a class="btn btn-sm btn-outline-light" href="{% url 'accounts:team_select' %}">Switch</a>
+          {% else %}
+            <a class="btn btn-sm btn-outline-light" href="{% url 'accounts:team_select' %}">Select Team</a>
+          {% endif %}
+  
+          <a class="btn btn-sm btn-outline-light" href="{% url 'planning:plan_list' %}">Plans</a>
+          <a class="btn btn-sm btn-outline-light" href="{% url 'menu:dish_list' %}">Menu</a>
+          <a class="btn btn-sm btn-outline-light" href="{% url 'menu:recipe_list' %}">Recipes</a>
+  
+          <a class="btn btn-sm btn-outline-info" href="{% url 'accounts:profile' %}">{{ request.user.username }}</a>
+          <a class="btn btn-sm btn-outline-warning" href="{% url 'account_logout' %}">Logout</a>
+        {% else %}
+          <a class="btn btn-sm btn-outline-light" href="{% url 'account_login' %}">Login</a>
+          <a class="btn btn-sm btn-outline-success" href="{% url 'account_signup' %}">Sign up</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>

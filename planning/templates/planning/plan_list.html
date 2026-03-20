@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center">
+    <h2>Prep Lists</h2>
+    <a class="btn btn-primary" href="{% url 'planning:create_tomorrow' %}">Create Tomorrow</a>
+  </div>
+
+  <div class="mt-3">
+    {% for p in plans %}
+      <div class="card mb-2">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <a class="text-decoration-none" href="{% url 'planning:plan_sheet' p.service_date %}">
+            {{ p.service_date }} — <strong>{{ p.state }}</strong>
+          </a>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'planning:plan_builder' p.service_date %}">Builder</a>
+        </div>
+      </div>
+    {% empty %}
+      <p>No plans yet.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

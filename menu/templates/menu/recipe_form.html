@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <h2>{% if view.object %}Edit Recipe{% else %}Create Recipe{% endif %}</h2>
+  <form method="post" class="card card-body mt-3">
+    {% csrf_token %}
+    <div class="mb-3"><label class="form-label">Recipe name</label>{{ form.name }}</div>
+    <div class="mb-3"><label class="form-label">Ingredients (1 per line)</label>{{ form.ingredients_text }}</div>
+    <div class="mb-3"><label class="form-label">Steps (1 per line, optional)</label>{{ form.steps_text }}</div>
+    <button class="btn btn-primary" type="submit">Save</button>
+  </form>
+</div>
+{% endblock %}

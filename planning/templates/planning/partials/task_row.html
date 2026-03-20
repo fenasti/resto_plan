@@ -1,0 +1,75 @@
+{% with comp=task.dish_component.component plan=task.plan %}
+<div id="task-{{ task.id }}" class="list-group-item p-0">
+
+  <div class="d-flex justify-content-between align-items-center px-3 py-2 task-main"
+       hx-post="{% url 'planning:task_tap' task.id %}"
+       hx-trigger="click"
+       hx-target="#task-{{ task.id }}"
+       hx-swap="outerHTML"
+       role="button">
+
+    <div class="d-flex align-items-center gap-2">
+      <span>{% if task.status == "NONE" %}☐{% else %}✅{% endif %}</span>
+
+      {% if comp.recipe_id %}
+        <a href="{% url 'menu:recipe_detail' comp.recipe_id %}" class="js-no-rowtap text-decoration-none" title="Recipe">
+          <i class="bi bi-journal-text"></i>
+        </a>
+      {% endif %}
+
+      <span class="{% if task.status == 'DONE' %}text-decoration-line-through{% endif %}">
+        {{ comp.name }}
+      </span>
+
+      {% if comp.spec_text %}
+        <small class="text-muted ms-2">{{ comp.spec_text }}</small>
+      {% endif %}
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      {% if task.assignee and task.assignee.cookprofile.avatar %}
+        <img src="{{ task.assignee.cookprofile.avatar.url }}"
+             class="rounded-circle"
+             width="24" height="24"
+             alt="assignee">
+      {% elif task.assignee %}
+        <span class="badge text-bg-secondary">{{ task.assignee.username }}</span>
+      {% endif %}
+
+      {% if plan.state == "PRODUCTION" %}
+        <button class="btn btn-sm btn-outline-secondary js-no-rowtap"
+                hx-post="{% url 'planning:task_claim' task.id %}"
+                hx-target="#task-{{ task.id }}"
+                hx-swap="outerHTML">
+          Claim
+        </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="px-3 pb-2 js-no-rowtap">
+    {% if note_edit %}
+      <form method="post"
+            hx-post="{% url 'planning:task_note' task.id %}"
+            hx-target="#task-{{ task.id }}"
+            hx-swap="outerHTML">
+        {% csrf_token %}
+        <div class="input-group input-group-sm mt-2">
+          <input class="form-control" type="text" name="daily_note" value="{{ task.daily_note }}" placeholder="Daily note (temporary)">
+          <button class="btn btn-outline-primary" type="submit">Save</button>
+        </div>
+      </form>
+    {% else %}
+      <div class="d-flex align-items-center justify-content-between mt-2">
+        <small class="text-muted">{% if task.daily_note %}{{ task.daily_note }}{% else %}No note{% endif %}</small>
+        <button class="btn btn-sm btn-link js-no-rowtap p-0"
+                hx-get="{% url 'planning:task_note' task.id %}"
+                hx-target="#task-{{ task.id }}"
+                hx-swap="outerHTML">
+          <i class="bi bi-pencil-square"></i>
+        </button>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endwith %}
