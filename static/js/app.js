@@ -2,10 +2,20 @@
 document.addEventListener(
     "click",
     function (e) {
-      if (e.target.closest(".js-no-rowtap")) e.stopPropagation();
+      const nestedControl = e.target.closest(".js-no-rowtap");
+      const htmxControl = e.target.closest("[hx-get], [hx-post], [hx-put], [hx-patch], [hx-delete]");
+      if (nestedControl && !htmxControl) e.stopPropagation();
     },
     true
   );
+
+  // Django requires a CSRF token on HTMX POST requests such as task tap/claim.
+  document.body.addEventListener("htmx:configRequest", function (event) {
+    const csrfInput = document.querySelector("[name=csrfmiddlewaretoken]");
+    if (csrfInput) {
+      event.detail.headers["X-CSRFToken"] = csrfInput.value;
+    }
+  });
   
   // Confirm modal controller (works for both builder-form actions and direct POST actions)
   document.addEventListener("DOMContentLoaded", function () {

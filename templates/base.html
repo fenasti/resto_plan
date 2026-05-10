@@ -15,7 +15,7 @@
 
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
-<body>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
   {% include "includes/navbar.html" %}
   {% include "includes/messages.html" %}
   {% include "includes/confirm_modal.html" %}

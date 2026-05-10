@@ -33,6 +33,10 @@ class TeamSelectView(LoginRequiredMixin, TemplateView):
     template_name = "accounts/team_select.html"
 
     def dispatch(self, request, *args, **kwargs):
+        # ✅ Let LoginRequiredMixin redirect anonymous users first
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
+
         # If a team is already active, go home
         if request.team:
             return redirect("home:index")
@@ -45,8 +49,11 @@ class TeamSelectView(LoginRequiredMixin, TemplateView):
             messages.success(request, "Workspace selected.")
             return redirect("home:index")
 
-        # If user has none, go join
+        # If user has none:
         if not memberships.exists():
+            # Staff users should be able to create the first team
+            if request.user.is_staff:
+                return super().dispatch(request, *args, **kwargs)
             return redirect("accounts:team_join")
 
         return super().dispatch(request, *args, **kwargs)

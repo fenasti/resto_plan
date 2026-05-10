@@ -10,6 +10,7 @@ urlpatterns = [
     path("<str:date_str>/builder/", views.PlanBuilderView.as_view(), name="plan_builder"),
 
     path("<str:date_str>/finalize/", views.finalize_plan_view, name="plan_finalize"),
+    path("<str:date_str>/reopen/", views.reopen_plan_view, name="plan_reopen"),
     path("<str:date_str>/refresh/", views.refresh_plan_view, name="plan_refresh"),
     path("<str:date_str>/erase/", views.erase_plan_view, name="plan_erase"),
 

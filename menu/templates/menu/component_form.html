@@ -1,13 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container py-4">
-  <h2>{% if view.object %}Edit Component{% else %}Create Component{% endif %}</h2>
+  <h2>{% if view.object %}Edit Prep Item{% else %}Create Prep Item{% endif %}</h2>
+  <p class="text-muted">
+    A prep item is one reusable piece of kitchen work. Link a recipe only when the item needs detailed instructions.
+  </p>
   <form method="post" class="card card-body mt-3">
     {% csrf_token %}
-    <div class="mb-3"><label class="form-label">Name</label>{{ form.name }}</div>
-    <div class="mb-3"><label class="form-label">Type</label>{{ form.type }}</div>
-    <div class="mb-3"><label class="form-label">Spec</label>{{ form.spec_text }}</div>
-    <div class="mb-3"><label class="form-label">Recipe (optional)</label>{{ form.recipe }}</div>
+    <div class="mb-3">
+      <label class="form-label">Prep item name</label>
+      {{ form.name }}
+      <div class="form-text">Example: Chop chives, Make chimichurri, Check garnish.</div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Kind</label>
+      {{ form.type }}
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Short instruction / spec</label>
+      {{ form.spec_text }}
+      <div class="form-text">Keep this quick. Use a recipe below for longer instructions.</div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Linked recipe (optional)</label>
+      {{ form.recipe }}
+      <div class="form-text">Recipes are detailed instructions. Not every prep item needs one.</div>
+    </div>
     <button class="btn btn-primary" type="submit">Save</button>
   </form>
 </div>

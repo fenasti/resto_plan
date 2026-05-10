@@ -1,52 +1,65 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container py-4">
-  <div class="d-flex justify-content-between align-items-center">
+<div class="container prep-shell py-3 py-md-4">
+  <div class="prep-header">
     <div>
       <h2>Prep Sheet</h2>
       <div class="text-muted">{{ plan.service_date }} — {{ plan.state }}</div>
     </div>
-    <div class="d-flex gap-2">
+    <div class="prep-actions">
       {% if plan.state == "DRAFT" %}
         <a class="btn btn-outline-secondary" href="{% url 'planning:plan_builder' plan.service_date %}">Edit Sheet</a>
 
         <button class="btn btn-outline-warning" type="button"
                 data-bs-toggle="modal" data-bs-target="#confirmModal"
-                data-confirm-title="Refresh placeholders"
-                data-confirm-body="Hard reset: this will erase current task statuses, assignees, and notes."
-                data-confirm-submit="Refresh"
+                data-confirm-title="Rebuild prep list"
+                data-confirm-body="This rebuilds the prep list from the selected dishes and erases current task statuses, assignees, and notes."
+                data-confirm-submit="Rebuild"
                 data-confirm-post="{% url 'planning:plan_refresh' plan.service_date %}">
-          Refresh
+          Rebuild
         </button>
 
         <button class="btn btn-success" type="button"
                 data-bs-toggle="modal" data-bs-target="#confirmModal"
-                data-confirm-title="Finalize plan"
-                data-confirm-body="After finalizing, you cannot edit dishes. Production mode enables row-tap claim + done."
-                data-confirm-submit="Finalize"
+                data-confirm-title="Finalize prep list"
+                data-confirm-body="This finalizes the prep list. Cooks can claim tasks and mark them done."
+                data-confirm-submit="Finalize Prep List"
                 data-confirm-post="{% url 'planning:plan_finalize' plan.service_date %}">
-          Finalize
+          Finalize Prep List
         </button>
 
         <button class="btn btn-danger" type="button"
                 data-bs-toggle="modal" data-bs-target="#confirmModal"
-                data-confirm-title="Erase plan"
-                data-confirm-body="This will permanently delete the plan."
+                data-confirm-title="Erase prep list"
+                data-confirm-body="This will permanently delete the prep list."
                 data-confirm-submit="Erase"
                 data-confirm-post="{% url 'planning:plan_erase' plan.service_date %}">
           Erase
+        </button>
+      {% else %}
+        <button class="btn btn-warning" type="button"
+                data-bs-toggle="modal" data-bs-target="#confirmModal"
+                data-confirm-title="Reopen for editing"
+                data-confirm-body="This will move the prep list back to DRAFT so you can edit or erase it."
+                data-confirm-submit="Reopen"
+                data-confirm-post="{% url 'planning:plan_reopen' plan.service_date %}">
+          Reopen for Editing
         </button>
       {% endif %}
     </div>
   </div>
 
+  {% include "planning/partials/progress_section.html" with plan=plan %}
+
   <div class="mt-4">
     {% for group in groups %}
-      <div class="mb-4">
-        <h4 class="mb-2">{{ group.dish.name }}</h4>
+      <div class="prep-task-group">
+        <h4 class="prep-task-title">{{ group.dish.name }}</h4>
         <div class="list-group">
           {% for task in group.tasks %}
             {% include "planning/partials/task_row.html" with task=task %}
+          {% empty %}
+            <div class="list-group-item text-muted">No prep items assigned to this dish yet.</div>
           {% endfor %}
         </div>
       </div>

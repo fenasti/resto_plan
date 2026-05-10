@@ -79,6 +79,14 @@ def erase_plan(plan: PrepPlan) -> None:
         raise ValueError("Cannot erase a plan in PRODUCTION.")
     plan.delete()
 
+def reopen_plan(plan: PrepPlan) -> None:
+    if plan.state != PrepPlan.PlanState.PRODUCTION:
+        return
+    plan.state = PrepPlan.PlanState.DRAFT
+    plan.finalized_by = None
+    plan.finalized_at = None
+    plan.save(update_fields=["state", "finalized_by", "finalized_at"])
+
 @transaction.atomic
 def task_tap(task_id: int, user) -> PrepTask:
     task = PrepTask.objects.select_for_update().select_related(
@@ -98,8 +106,10 @@ def task_tap(task_id: int, user) -> PrepTask:
         task.save(update_fields=["status"])
         return task
 
-    # PRODUCTION: claim override + NONE->PLANNED + PLANNED<->DONE
-    task.assignee = user
+    # PRODUCTION: row tap claims if needed, then toggles planned/done.
+    if task.assignee_id is None:
+        task.assignee = user
+
     if task.status == PrepTask.TaskStatus.NONE:
         task.status = PrepTask.TaskStatus.PLANNED
     elif task.status == PrepTask.TaskStatus.PLANNED:
@@ -122,8 +132,14 @@ def task_claim(task_id: int, user) -> PrepTask:
     if task.plan.state != PrepPlan.PlanState.PRODUCTION:
         return task
 
-    task.assignee = user
-    task.save(update_fields=["assignee"])
+    if task.assignee_id:
+        task.assignee = None
+        task.status = PrepTask.TaskStatus.NONE
+    else:
+        task.assignee = user
+        task.status = PrepTask.TaskStatus.PLANNED
+
+    task.save(update_fields=["assignee", "status"])
     return task
 
 @transaction.atomic

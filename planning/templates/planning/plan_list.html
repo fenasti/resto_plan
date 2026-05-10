@@ -1,19 +1,83 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container py-4">
-  <div class="d-flex justify-content-between align-items-center">
-    <h2>Prep Lists</h2>
-    <a class="btn btn-primary" href="{% url 'planning:create_tomorrow' %}">Create Tomorrow</a>
+<div class="container prep-shell py-3 py-md-4">
+  <div class="prep-header">
+    <div>
+      <h2>Prep Lists</h2>
+      <p class="text-muted mb-0">Track each service from draft selection to a finalized kitchen prep list.</p>
+    </div>
+    <a class="btn btn-primary prep-header-action" href="{% url 'planning:create_tomorrow' %}">Build Tomorrow's Prep List</a>
   </div>
 
   <div class="mt-3">
     {% for p in plans %}
-      <div class="card mb-2">
-        <div class="card-body d-flex justify-content-between align-items-center">
-          <a class="text-decoration-none" href="{% url 'planning:plan_sheet' p.service_date %}">
-            {{ p.service_date }} — <strong>{{ p.state }}</strong>
-          </a>
-          <a class="btn btn-sm btn-outline-secondary" href="{% url 'planning:plan_builder' p.service_date %}">Builder</a>
+      <div class="card prep-card mb-3 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex flex-column gap-3">
+            <div class="flex-grow-1">
+              <div class="prep-status-row">
+                <a class="text-decoration-none fs-5 fw-semibold" href="{% url 'planning:plan_sheet' p.service_date %}">
+                  {{ p.service_date }}
+                </a>
+                {% if p.state == "DRAFT" %}
+                  <span class="badge rounded-pill text-bg-secondary">Draft</span>
+                {% else %}
+                  <span class="badge rounded-pill text-bg-success">Finalized</span>
+                {% endif %}
+              </div>
+
+              {% if p.state == "DRAFT" %}
+                <p class="text-muted mb-0 mt-2">Next step: review your dish selection, rebuild the prep list if needed, then finalize it for the kitchen.</p>
+              {% else %}
+                <p class="text-muted mb-0 mt-2">Next step: open the prep sheet to track kitchen progress, or reopen this list if you need to make changes.</p>
+                {% if p.task_total %}
+                  <div class="prep-progress-block mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="small fw-semibold">Team Progress</span>
+                      <span class="small text-muted">{{ p.task_done }} of {{ p.task_total }} tasks complete</span>
+                    </div>
+                    <div class="progress prep-progress" role="progressbar" aria-label="Team progress" aria-valuenow="{{ p.progress_percent }}" aria-valuemin="0" aria-valuemax="100">
+                      <div class="progress-bar {% if p.is_complete %}bg-success{% endif %}" style="width: {{ p.progress_percent }}%"></div>
+                    </div>
+                    <div class="small mt-1 {% if p.is_complete %}text-success fw-semibold{% else %}text-muted{% endif %}">
+                      {% if p.is_complete %}Prep complete{% else %}{{ p.progress_percent }}% complete{% endif %}
+                    </div>
+                  </div>
+                {% endif %}
+              {% endif %}
+            </div>
+
+            <div class="prep-card-actions">
+              {% if p.state == "DRAFT" %}
+                <a class="btn btn-primary" href="{% url 'planning:plan_builder' p.service_date %}">
+                  Continue Building
+                </a>
+                <a class="btn btn-outline-secondary" href="{% url 'planning:plan_sheet' p.service_date %}">
+                  Review Prep Sheet
+                </a>
+                <button class="btn btn-outline-danger" type="button"
+                        data-bs-toggle="modal" data-bs-target="#confirmModal"
+                        data-confirm-title="Erase prep list"
+                        data-confirm-body="This will permanently delete the draft plan so you can create it again."
+                        data-confirm-submit="Erase"
+                        data-confirm-post="{% url 'planning:plan_erase' p.service_date %}">
+                  Erase
+                </button>
+              {% else %}
+                <a class="btn btn-primary" href="{% url 'planning:plan_sheet' p.service_date %}">
+                  Open Prep Sheet
+                </a>
+                <button class="btn btn-outline-warning" type="button"
+                        data-bs-toggle="modal" data-bs-target="#confirmModal"
+                        data-confirm-title="Reopen for editing"
+                        data-confirm-body="This will move the prep list back to DRAFT so you can edit or erase it."
+                        data-confirm-submit="Reopen"
+                        data-confirm-post="{% url 'planning:plan_reopen' p.service_date %}">
+                  Reopen
+                </button>
+              {% endif %}
+            </div>
+          </div>
         </div>
       </div>
     {% empty %}

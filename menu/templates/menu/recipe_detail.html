@@ -18,7 +18,7 @@
     {% endfor %}
   </ul>
 
-  {% if recipe.steps_text|trim %}
+  {% if recipe.steps_text %}
     <h5 class="mt-4">Steps</h5>
     <ol class="list-group list-group-numbered">
       {% for step in recipe.steps_text|splitlines %}

@@ -25,6 +25,33 @@ class PrepPlan(models.Model):
     def __str__(self):
         return f"{self.team.name} {self.service_date} ({self.state})"
 
+    @property
+    def task_total(self) -> int:
+        if hasattr(self, "_task_total"):
+            return self._task_total
+        if hasattr(self, "task_total_count"):
+            return self.task_total_count
+        return self.tasks.count()
+
+    @property
+    def task_done(self) -> int:
+        if hasattr(self, "_task_done"):
+            return self._task_done
+        if hasattr(self, "task_done_count"):
+            return self.task_done_count
+        return self.tasks.filter(status=PrepTask.TaskStatus.DONE).count()
+
+    @property
+    def progress_percent(self) -> int:
+        total = self.task_total
+        if total == 0:
+            return 0
+        return round((self.task_done / total) * 100)
+
+    @property
+    def is_complete(self) -> bool:
+        return self.task_total > 0 and self.task_done == self.task_total
+
 
 class PlanDish(models.Model):
     plan = models.ForeignKey(PrepPlan, on_delete=models.CASCADE, related_name="plan_dishes")

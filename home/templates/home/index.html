@@ -9,7 +9,7 @@
       <a class="card text-decoration-none" href="{% url 'planning:plan_list' %}">
         <div class="card-body">
           <h5 class="card-title">View Prep Lists</h5>
-          <p class="card-text">Browse plans by date.</p>
+          <p class="card-text">Run or review kitchen prep by service date.</p>
         </div>
       </a>
     </div>
@@ -18,7 +18,7 @@
       <a class="card text-decoration-none" href="{% url 'planning:create_tomorrow' %}">
         <div class="card-body">
           <h5 class="card-title">Create Prep List</h5>
-          <p class="card-text">Creates/opens tomorrow builder.</p>
+          <p class="card-text">Choose dishes and generate tomorrow's prep sheet.</p>
         </div>
       </a>
     </div>
@@ -26,8 +26,8 @@
     <div class="col-md-4">
       <a class="card text-decoration-none" href="{% url 'menu:dish_list' %}">
         <div class="card-body">
-          <h5 class="card-title">Menu Items (Dishes)</h5>
-          <p class="card-text">Team-scoped dishes & components.</p>
+          <h5 class="card-title">Menu Setup</h5>
+          <p class="card-text">Build dishes from reusable prep items.</p>
         </div>
       </a>
     </div>
@@ -36,7 +36,7 @@
       <a class="card text-decoration-none" href="{% url 'menu:recipe_list' %}">
         <div class="card-body">
           <h5 class="card-title">Recipes</h5>
-          <p class="card-text">Visible to everyone in the team.</p>
+          <p class="card-text">Detailed instructions linked from prep items.</p>
         </div>
       </a>
     </div>
@@ -61,15 +61,17 @@
     </div>
     {% endif %}
 
-    {% if active_membership and (active_membership.can_manage_team or active_membership.role != "MEMBER") %}
-    <div class="col-md-4">
-      <a class="card text-decoration-none" href="{% url 'accounts:team_manage' %}">
-        <div class="card-body">
-          <h5 class="card-title">Manage Team</h5>
-          <p class="card-text">Roles, permissions, join code rotation.</p>
+    {% if active_membership %}
+      {% if active_membership.can_manage_team or active_membership.role != "MEMBER" %}
+        <div class="col-md-4">
+          <a class="card text-decoration-none" href="{% url 'accounts:team_manage' %}">
+            <div class="card-body">
+              <h5 class="card-title">Manage Team</h5>
+              <p class="card-text">Roles, permissions, join code rotation.</p>
+            </div>
+          </a>
         </div>
-      </a>
-    </div>
+      {% endif %}
     {% endif %}
 
     {% if request.user.is_staff %}

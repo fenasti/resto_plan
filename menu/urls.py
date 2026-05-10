@@ -20,6 +20,7 @@ urlpatterns = [
     path("dishes/<int:pk>/delete/", views.DishDeleteView.as_view(), name="dish_delete"),
     path("dishes/<int:pk>/toggle-on-use/", views.toggle_on_use, name="dish_toggle_on_use"),
     path("dishes/<int:pk>/components/edit/", views.edit_dish_components, name="dish_components_edit"),
+    path("dish-components/<int:pk>/remove/", views.remove_dish_component, name="dish_component_remove"),
 
     path("components/", views.ComponentListView.as_view(), name="component_list"),
     path("components/create/", views.ComponentCreateView.as_view(), name="component_create"),

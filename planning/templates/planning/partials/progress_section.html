@@ -1,0 +1,23 @@
+{% if plan.task_total %}
+  <section id="prep-progress-section" {% if oob %}hx-swap-oob="outerHTML"{% endif %} class="card prep-card mt-4 shadow-sm">
+    <div class="card-body">
+      <div class="d-flex flex-column gap-2">
+        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+          <div>
+            <h5 class="mb-1">Team Progress</h5>
+            <p class="text-muted mb-0">One shared view of how far the prep list has moved together.</p>
+          </div>
+          <div class="small text-muted">{{ plan.task_done }} of {{ plan.task_total }} tasks complete</div>
+        </div>
+
+        <div class="progress prep-progress prep-progress-lg" role="progressbar" aria-label="Team progress" aria-valuenow="{{ plan.progress_percent }}" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar {% if plan.is_complete %}bg-success{% endif %}" style="width: {{ plan.progress_percent }}%"></div>
+        </div>
+
+        <div class="{% if plan.is_complete %}text-success fw-semibold{% else %}text-muted{% endif %}">
+          {% if plan.is_complete %}Prep complete{% else %}{{ plan.progress_percent }}% complete{% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+{% endif %}
