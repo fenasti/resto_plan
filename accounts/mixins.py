@@ -20,7 +20,9 @@ class TeamMemberRequiredMixin(ActiveTeamRequiredMixin):
     """
     def dispatch(self, request, *args, **kwargs):
         if not getattr(request, "membership", None):
-            return redirect(reverse("accounts:team_join"))
+            if TeamMembership.objects.filter(user=request.user).exists():
+                return redirect(reverse("accounts:team_select"))
+            return redirect(reverse("accounts:team_start"))
         return super().dispatch(request, *args, **kwargs)
 
 
@@ -34,7 +36,9 @@ class TeamPermissionRequiredMixin(TeamMemberRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
         membership = getattr(request, "membership", None)
         if not membership:
-            return redirect(reverse("accounts:team_join"))
+            if TeamMembership.objects.filter(user=request.user).exists():
+                return redirect(reverse("accounts:team_select"))
+            return redirect(reverse("accounts:team_start"))
         if self.required_flag and not getattr(membership, self.required_flag, False):
             # Fallback: owners/admins can do everything unless you want stricter.
             if membership.role not in (TeamMembership.Role.OWNER, TeamMembership.Role.ADMIN):

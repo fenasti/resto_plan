@@ -51,10 +51,7 @@ class TeamSelectView(LoginRequiredMixin, TemplateView):
 
         # If user has none:
         if not memberships.exists():
-            # Staff users should be able to create the first team
-            if request.user.is_staff:
-                return super().dispatch(request, *args, **kwargs)
-            return redirect("accounts:team_join")
+            return redirect("accounts:team_start")
 
         return super().dispatch(request, *args, **kwargs)
 
@@ -74,6 +71,20 @@ class TeamSelectView(LoginRequiredMixin, TemplateView):
             messages.success(request, "Workspace selected.")
             return redirect("home:index")
         return render(request, self.template_name, {"form": form, "teams": teams})
+
+
+class TeamStartView(LoginRequiredMixin, TemplateView):
+    template_name = "accounts/team_start.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.team:
+            return redirect("home:index")
+
+        memberships = TeamMembership.objects.filter(user=request.user)
+        if memberships.exists():
+            return redirect("accounts:team_select")
+
+        return super().dispatch(request, *args, **kwargs)
 
 
 class TeamJoinView(LoginRequiredMixin, FormView):
@@ -99,10 +110,7 @@ class TeamJoinView(LoginRequiredMixin, FormView):
         return super().form_valid(form)
 
 
-class TeamCreateView(PlatformAdminRequiredMixin, FormView):
-    """
-    Only platform admins (is_staff) can create teams.
-    """
+class TeamCreateView(LoginRequiredMixin, FormView):
     template_name = "accounts/team_create.html"
     form_class = TeamCreateForm
     success_url = reverse_lazy("home:index")
