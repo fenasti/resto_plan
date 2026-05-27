@@ -6,18 +6,9 @@
       <h2>Prep Sheet</h2>
       <div class="text-muted">{{ plan.service_date }} — {{ plan.state }}</div>
     </div>
-    <div class="prep-actions">
+    <div class="prep-primary-actions">
       {% if plan.state == "DRAFT" %}
-        <a class="btn btn-outline-secondary" href="{% url 'planning:plan_builder' plan.service_date %}">Edit Sheet</a>
-
-        <button class="btn btn-outline-warning" type="button"
-                data-bs-toggle="modal" data-bs-target="#confirmModal"
-                data-confirm-title="Rebuild prep list"
-                data-confirm-body="This rebuilds the prep list from the selected dishes and erases current task statuses, assignees, and notes."
-                data-confirm-submit="Rebuild"
-                data-confirm-post="{% url 'planning:plan_refresh' plan.service_date %}">
-          Rebuild
-        </button>
+        <a class="btn btn-outline-secondary" href="{% url 'planning:plan_builder' plan.service_date %}">Edit Selection</a>
 
         <button class="btn btn-success" type="button"
                 data-bs-toggle="modal" data-bs-target="#confirmModal"
@@ -28,14 +19,6 @@
           Finalize Prep List
         </button>
 
-        <button class="btn btn-danger" type="button"
-                data-bs-toggle="modal" data-bs-target="#confirmModal"
-                data-confirm-title="Erase prep list"
-                data-confirm-body="This will permanently delete the prep list."
-                data-confirm-submit="Erase"
-                data-confirm-post="{% url 'planning:plan_erase' plan.service_date %}">
-          Erase
-        </button>
       {% else %}
         <button class="btn btn-warning" type="button"
                 data-bs-toggle="modal" data-bs-target="#confirmModal"
@@ -50,6 +33,35 @@
   </div>
 
   {% include "planning/partials/progress_section.html" with plan=plan %}
+
+  {% if plan.state == "DRAFT" %}
+    <div class="secondary-action-panel mt-4">
+      <div>
+        <h6 class="mb-1">Need to rebuild the generated prep tasks?</h6>
+        <p class="text-muted mb-0">Use this after changing dish selection. Rebuilding resets draft task statuses, assignees, and notes.</p>
+      </div>
+      <button class="btn btn-outline-warning" type="button"
+              data-bs-toggle="modal" data-bs-target="#confirmModal"
+              data-confirm-title="Rebuild prep list"
+              data-confirm-body="This rebuilds the prep list from the selected dishes and erases current task statuses, assignees, and notes."
+              data-confirm-submit="Rebuild"
+              data-confirm-post="{% url 'planning:plan_refresh' plan.service_date %}">
+        Rebuild Prep List
+      </button>
+    </div>
+
+    <div class="danger-zone mt-4">
+      <p class="small text-muted mb-2">Administrative action</p>
+      <button class="btn btn-outline-danger" type="button"
+              data-bs-toggle="modal" data-bs-target="#confirmModal"
+              data-confirm-title="Erase prep list"
+              data-confirm-body="This will permanently delete the prep list."
+              data-confirm-submit="Erase"
+              data-confirm-post="{% url 'planning:plan_erase' plan.service_date %}">
+        Erase Prep List
+      </button>
+    </div>
+  {% endif %}
 
   <div class="mt-4">
     {% for group in groups %}

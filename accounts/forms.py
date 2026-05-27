@@ -10,6 +10,7 @@ class CookProfileForm(forms.ModelForm):
         fields = ["display_name", "avatar"]
         widgets = {
             "display_name": forms.TextInput(attrs={"class": "form-control"}),
+            "avatar": forms.ClearableFileInput(attrs={"class": "form-control"}),
         }
 
 

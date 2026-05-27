@@ -6,6 +6,39 @@
   margin-right: auto;
 }
 
+.dashboard-header,
+.dashboard-section-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dashboard-section + .dashboard-section {
+  margin-top: 2rem;
+}
+
+.dashboard-card,
+.dashboard-link-card {
+  border-radius: 1rem;
+}
+
+.dashboard-link-card {
+  color: inherit;
+}
+
+.dashboard-link-card:hover,
+.dashboard-link-card:focus {
+  color: inherit;
+}
+
+.dashboard-kicker {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6c757d;
+}
+
 .prep-header {
   display: flex;
   flex-direction: column;
@@ -15,7 +48,8 @@
 
 .prep-header-action,
 .prep-actions > *,
-.prep-card-actions > * {
+.prep-card-actions > *,
+.prep-primary-actions > * {
   width: 100%;
 }
 
@@ -43,10 +77,29 @@
 }
 
 .prep-card-actions,
-.prep-actions {
+.prep-actions,
+.prep-primary-actions {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.secondary-action-panel,
+.danger-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.secondary-action-panel {
+  padding: 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 1rem;
+  background: #f8f9fa;
+}
+
+.danger-zone {
+  align-items: flex-start;
 }
 
 .prep-status-row {
@@ -82,6 +135,81 @@
 
 .prep-progress-lg {
   height: 0.9rem;
+}
+
+.order-category-section + .order-category-section {
+  margin-top: 1.5rem;
+}
+
+.order-add-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 1rem;
+  background: #fff;
+}
+
+.order-editor-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.order-category-header {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.order-table th {
+  white-space: nowrap;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6c757d;
+}
+
+.order-table td {
+  vertical-align: top;
+}
+
+.order-item-name {
+  min-width: 220px;
+}
+
+.order-table .form-control {
+  min-width: 180px;
+}
+
+.order-row-action .btn {
+  width: 100%;
+}
+
+.team-code-badge {
+  font-size: 1rem;
+  padding: 0.6rem 0.85rem;
+}
+
+.team-member-card .form-label {
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.team-permission-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+}
+
+.team-member-actions .btn {
+  width: 100%;
 }
 
 .task-main {
@@ -136,9 +264,67 @@
   border-radius: 0.375rem !important;
 }
 
+@media (max-width: 767.98px) {
+  .order-table thead {
+    display: none;
+  }
+
+  .order-table,
+  .order-table tbody,
+  .order-table tr,
+  .order-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .order-table tr {
+    margin-bottom: 0.9rem;
+    padding: 0.9rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.9rem;
+    background: #fff;
+  }
+
+  .order-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .order-table td {
+    border: 0;
+    padding: 0;
+  }
+
+  .order-table td + td {
+    margin-top: 0.75rem;
+  }
+
+  .order-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #6c757d;
+  }
+
+  .order-item-name,
+  .order-table .form-control {
+    min-width: 0;
+  }
+}
+
 @media (min-width: 768px) {
   .prep-shell {
     max-width: 1040px;
+  }
+
+  .dashboard-header,
+  .dashboard-section-copy {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
   }
 
   .prep-header {
@@ -152,13 +338,35 @@
   }
 
   .prep-card-actions,
-  .prep-actions {
+  .prep-actions,
+  .prep-primary-actions {
     flex-direction: row;
     flex-wrap: wrap;
   }
 
   .prep-card-actions > *,
-  .prep-actions > * {
+  .prep-actions > *,
+  .prep-primary-actions > * {
+    width: auto;
+  }
+
+  .secondary-action-panel {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .secondary-action-panel > :last-child {
+    flex-shrink: 0;
+  }
+
+  .order-editor-toolbar {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .team-member-actions .btn {
     width: auto;
   }
 

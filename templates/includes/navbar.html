@@ -10,6 +10,7 @@
       {% if request.user.is_authenticated %}
         <div class="navbar-nav gap-lg-1 me-auto mt-3 mt-lg-0">
           <a class="nav-link px-lg-3" href="{% url 'planning:plan_list' %}">Prep Lists</a>
+          <a class="nav-link px-lg-3" href="{% url 'ordering:order_list' %}">Order Lists</a>
           <a class="nav-link px-lg-3" href="{% url 'menu:dish_list' %}">Menu Setup</a>
           <a class="nav-link px-lg-3" href="{% url 'menu:recipe_list' %}">Recipes</a>
         </div>

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container prep-shell py-3 py-md-4">
+  <div class="prep-header">
+    <div>
+      <h2>Order Lists</h2>
+      <p class="text-muted mb-0">Build repeatable supplier orders from a practical catalog of purchasable items.</p>
+    </div>
+    <div class="prep-actions">
+      <a class="btn btn-primary prep-header-action" href="{% url 'ordering:order_create' %}">Create From Last Order</a>
+      <a class="btn btn-outline-secondary prep-header-action" href="{% url 'ordering:order_create_blank' %}">Blank Order</a>
+    </div>
+  </div>
+
+  <div class="mt-3">
+    {% for order in orders %}
+      <div class="card prep-card mb-3 shadow-sm">
+        <div class="card-body">
+          <div class="d-flex flex-column gap-3">
+            <div>
+              <div class="prep-status-row">
+                <a class="text-decoration-none fs-5 fw-semibold" href="{% url 'ordering:order_detail' order.order_date %}">
+                  {{ order.order_date }}
+                </a>
+                {% if order.state == "DRAFT" %}
+                  <span class="badge rounded-pill text-bg-secondary">Draft</span>
+                {% else %}
+                  <span class="badge rounded-pill text-bg-success">Finalized</span>
+                {% endif %}
+              </div>
+              <p class="text-muted mb-0 mt-2">
+                {{ order.item_count }} line{{ order.item_count|pluralize }}.
+                {% if order.state == "DRAFT" %}
+                  Continue editing quantities, add missing items, or finalize when the order is ready.
+                {% else %}
+                  Use this as archive history, export it again, or clone it into today's new order.
+                {% endif %}
+              </p>
+            </div>
+
+            <div class="prep-card-actions">
+              <a class="btn btn-primary" href="{% url 'ordering:order_detail' order.order_date %}">
+                {% if order.state == "DRAFT" %}Continue Editing{% else %}Open Order{% endif %}
+              </a>
+              <a class="btn btn-outline-secondary" href="{% url 'ordering:order_export' order.order_date %}">
+                Export Excel
+              </a>
+              <a class="btn btn-outline-secondary" href="{% url 'ordering:order_clone' order.order_date %}">
+                Create from This
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="card prep-card shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-2">No order lists yet</h5>
+          <p class="text-muted mb-0">Start with a blank order once, then reuse it as the base for the next supplier orders.</p>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

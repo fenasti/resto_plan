@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container prep-shell py-3 py-md-4">
+  <div class="prep-header">
+    <div>
+      <h2>Order List</h2>
+      <div class="text-muted">{{ order.order_date }} — {{ order.state }} · {{ order.item_count }} line{{ order.item_count|pluralize }}</div>
+    </div>
+    <div class="prep-actions">
+      <a class="btn btn-outline-secondary" href="{% url 'ordering:order_list' %}">Back to Orders</a>
+      <a class="btn btn-outline-secondary" href="{% url 'ordering:order_export' order.order_date %}">Export Excel</a>
+      <a class="btn btn-outline-secondary" href="{% url 'ordering:order_clone' order.order_date %}">Create from This</a>
+      {% if order.state == "FINALIZED" %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="reopen">
+          <button class="btn btn-warning" type="submit">Reopen for Editing</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if order.state == "DRAFT" %}
+    <div class="card prep-card shadow-sm mt-3">
+      <div class="card-body">
+        <h5 class="mb-1">Add Item</h5>
+        <p class="text-muted mb-0">Add something already in your catalog, or create a new purchasable item on the spot.</p>
+
+        <div class="row g-3 mt-1">
+          <div class="col-12 col-xl-5">
+            <div class="order-add-block h-100">
+              <h6 class="mb-3">Existing Catalog Item</h6>
+              <form method="post" class="d-flex flex-column gap-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_existing">
+                <div>
+                  {{ add_existing_form.purchase_item }}
+                  {% for error in add_existing_form.purchase_item.errors %}
+                    <div class="text-danger small mt-1">{{ error }}</div>
+                  {% endfor %}
+                </div>
+                <button class="btn btn-primary" type="submit">Add to Order</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="col-12 col-xl-7">
+            <div class="order-add-block h-100">
+              <h6 class="mb-3">Create New Catalog Item</h6>
+              <form method="post" class="d-flex flex-column gap-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_new">
+                <div class="row g-3">
+                  <div class="col-12">
+                    {{ create_item_form.name }}
+                    {% for error in create_item_form.name.errors %}
+                      <div class="text-danger small mt-1">{{ error }}</div>
+                    {% endfor %}
+                  </div>
+                  <div class="col-12 col-md-6">
+                    {{ create_item_form.category }}
+                    {% for error in create_item_form.category.errors %}
+                      <div class="text-danger small mt-1">{{ error }}</div>
+                    {% endfor %}
+                  </div>
+                  <div class="col-12 col-md-6">
+                    {{ create_item_form.default_unit }}
+                    {% for error in create_item_form.default_unit.errors %}
+                      <div class="text-danger small mt-1">{{ error }}</div>
+                    {% endfor %}
+                  </div>
+                </div>
+                <button class="btn btn-outline-secondary" type="submit">Create and Add</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <form method="post" class="card prep-card shadow-sm mt-4">
+    <div class="card-body">
+      {% csrf_token %}
+      {{ formset.management_form }}
+      <input type="hidden" name="action" id="order-form-action" value="save">
+
+      <div class="order-editor-toolbar mb-3">
+        <div>
+          <h5 class="mb-1">Order Table</h5>
+          <p class="text-muted mb-0">Keep the quantities flexible and practical so the exported sheet is easy to send to suppliers.</p>
+        </div>
+        {% if order.state == "DRAFT" %}
+          <div class="prep-primary-actions">
+            <button class="btn btn-primary" type="submit" onclick="document.getElementById('order-form-action').value='save'">Save Draft</button>
+            <button class="btn btn-success" type="submit" onclick="document.getElementById('order-form-action').value='finalize'">Finalize Order</button>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if groups %}
+        {% for group in groups %}
+          <section class="order-category-section">
+            <div class="order-category-header">{{ group.category }}</div>
+            <div class="table-responsive">
+              <table class="table align-middle order-table mb-0">
+                <thead>
+                  <tr>
+                    <th scope="col">Item</th>
+                    <th scope="col">Quantity</th>
+                    <th scope="col">Note</th>
+                    {% if order.state == "DRAFT" %}
+                      <th scope="col" class="text-end">Remove</th>
+                    {% endif %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in group.rows %}
+                    <tr>
+                      <td data-label="Item" class="order-item-name">
+                        {{ row.form.id }}
+                        <div class="fw-semibold">{{ row.item.purchase_item.name }}</div>
+                        {% if row.item.purchase_item.default_unit %}
+                          <div class="small text-muted">Default unit: {{ row.item.purchase_item.default_unit }}</div>
+                        {% endif %}
+                      </td>
+                      <td data-label="Quantity">
+                        {{ row.form.quantity_text }}
+                        {% for error in row.form.quantity_text.errors %}
+                          <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                      </td>
+                      <td data-label="Note">
+                        {{ row.form.note }}
+                        {% for error in row.form.note.errors %}
+                          <div class="text-danger small mt-1">{{ error }}</div>
+                        {% endfor %}
+                      </td>
+                      {% if order.state == "DRAFT" %}
+                        <td data-label="Remove" class="order-row-action text-end">
+                          <button class="btn btn-sm btn-outline-danger" type="submit" form="remove-item-{{ row.item.id }}">Remove</button>
+                        </td>
+                      {% endif %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        {% endfor %}
+      {% else %}
+        <div class="text-muted">No items on this order yet. Add an existing catalog item or create a new one above.</div>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if order.state == "DRAFT" %}
+    <div class="danger-zone mt-3">
+      <p class="small text-muted mb-2">Administrative action</p>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="erase">
+        <button class="btn btn-outline-danger" type="submit">Erase Order</button>
+      </form>
+    </div>
+
+    {% for group in groups %}
+      {% for row in group.rows %}
+        <form id="remove-item-{{ row.item.id }}" method="post" class="d-none">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="remove_item">
+          <input type="hidden" name="item_id" value="{{ row.item.id }}">
+        </form>
+      {% endfor %}
+    {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -28,6 +28,14 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
     def get_object(self, queryset=None):
         return self.request.user.cookprofile
 
+    def form_valid(self, form):
+        messages.success(self.request, "Profile updated.")
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        messages.error(self.request, "Could not update profile. Please check the form errors.")
+        return super().form_invalid(form)
+
 
 class TeamSelectView(LoginRequiredMixin, TemplateView):
     template_name = "accounts/team_select.html"
