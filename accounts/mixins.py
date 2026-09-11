@@ -1,4 +1,5 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q
 from django.shortcuts import redirect
 from django.urls import reverse
 
@@ -44,6 +45,34 @@ class TeamPermissionRequiredMixin(TeamMemberRequiredMixin):
             if membership.role not in (TeamMembership.Role.OWNER, TeamMembership.Role.ADMIN):
                 return redirect(reverse("home:index"))
         return super().dispatch(request, *args, **kwargs)
+
+
+class SearchablePaginatedListMixin:
+    """
+    Adds `?q=` search (icontains over `search_fields`) and pagination to a
+    ListView. Subclasses provide the team-scoped base queryset via
+    get_base_queryset() instead of overriding get_queryset() directly.
+    """
+    paginate_by = 20
+    search_fields: list[str] = []
+
+    def get_base_queryset(self):
+        raise NotImplementedError
+
+    def get_queryset(self):
+        qs = self.get_base_queryset()
+        query = self.request.GET.get("q", "").strip()
+        if query and self.search_fields:
+            q_filter = Q()
+            for field in self.search_fields:
+                q_filter |= Q(**{f"{field}__icontains": query})
+            qs = qs.filter(q_filter)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["search_query"] = self.request.GET.get("q", "")
+        return ctx
 
 
 class PlatformAdminRequiredMixin(LoginRequiredMixin):

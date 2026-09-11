@@ -35,6 +35,7 @@ def create_tomorrow(request):
 class PlanListView(TeamMemberRequiredMixin, ListView):
     template_name = "planning/plan_list.html"
     context_object_name = "plans"
+    paginate_by = 20
 
     def get_queryset(self):
         return get_plan_list_queryset(self.request.team)
@@ -86,8 +87,11 @@ class PlanBuilderView(TeamMemberRequiredMixin, TemplateView):
 
         if action == "reopen":
             services.reopen_plan(plan)
-            messages.success(request, "Prep list reopened for editing. You can edit or erase it now.")
-            return redirect("planning:plan_builder", date_str=str(plan.service_date))
+            if plan.state == PrepPlan.PlanState.DRAFT:
+                messages.success(request, "Prep list reopened for editing. You can edit or erase it now.")
+                return redirect("planning:plan_builder", date_str=str(plan.service_date))
+            messages.success(request, "Prep list reopened. Cooks can claim tasks and mark them done again.")
+            return redirect("planning:plan_sheet", date_str=str(plan.service_date))
 
         form = PlanBuilderForm(request.POST, team=self.request.team)
         if not form.is_valid():
@@ -133,6 +137,20 @@ def finalize_plan_view(request, date_str: str):
     return redirect("planning:plan_sheet", date_str=str(plan.service_date))
 
 @login_required
+def complete_plan_view(request, date_str: str):
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    if not request.team or not request.membership:
+        return redirect("accounts:team_select")
+    service_date = _parse_date(date_str)
+    plan = PrepPlan.objects.filter(team=request.team, service_date=service_date).first()
+    if not plan:
+        raise Http404("Plan not found.")
+    services.complete_plan(plan, request.user)
+    messages.success(request, "Prep list marked complete and locked for editing.")
+    return redirect("planning:plan_sheet", date_str=str(plan.service_date))
+
+@login_required
 def refresh_plan_view(request, date_str: str):
     if not request.team or not request.membership:
         return redirect("accounts:team_select")
@@ -165,8 +183,11 @@ def reopen_plan_view(request, date_str: str):
     if not plan:
         raise Http404("Plan not found.")
     services.reopen_plan(plan)
-    messages.success(request, "Prep list reopened for editing. You can edit or erase it now.")
-    return redirect("planning:plan_builder", date_str=str(plan.service_date))
+    if plan.state == PrepPlan.PlanState.DRAFT:
+        messages.success(request, "Prep list reopened for editing. You can edit or erase it now.")
+        return redirect("planning:plan_builder", date_str=str(plan.service_date))
+    messages.success(request, "Prep list reopened. Cooks can claim tasks and mark them done again.")
+    return redirect("planning:plan_sheet", date_str=str(plan.service_date))
 
 
 @login_required
@@ -175,7 +196,7 @@ def task_tap_view(request, pk: int):
         return HttpResponse(status=405)
     task = services.task_tap(pk, request.user)
     _hydrate_plan_progress(task.plan)
-    return render(request, "planning/partials/task_row_response.html", {"task": task})
+    return render(request, "planning/partials/task_row_response.html", {"task": task, "groups": get_sheet_groups(task.plan)})
 
 @login_required
 def task_claim_view(request, pk: int):
@@ -183,7 +204,7 @@ def task_claim_view(request, pk: int):
         return HttpResponse(status=405)
     task = services.task_claim(pk, request.user)
     _hydrate_plan_progress(task.plan)
-    return render(request, "planning/partials/task_row_response.html", {"task": task})
+    return render(request, "planning/partials/task_row_response.html", {"task": task, "groups": get_sheet_groups(task.plan)})
 
 @login_required
 def task_note_view(request, pk: int):
@@ -192,9 +213,10 @@ def task_note_view(request, pk: int):
     ).get(pk=pk)
 
     if request.method == "GET":
-        return render(request, "planning/partials/task_row.html", {"task": task, "note_edit": True})
+        note_edit = task.plan.state != PrepPlan.PlanState.COMPLETE
+        return render(request, "planning/partials/task_row.html", {"task": task, "note_edit": note_edit})
 
     note = request.POST.get("daily_note", "")
     task = services.set_task_note(pk, note, request.user)
     _hydrate_plan_progress(task.plan)
-    return render(request, "planning/partials/task_row_response.html", {"task": task})
+    return render(request, "planning/partials/task_row_response.html", {"task": task, "groups": get_sheet_groups(task.plan)})

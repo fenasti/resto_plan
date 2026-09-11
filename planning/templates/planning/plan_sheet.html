@@ -19,7 +19,11 @@
           Finalize Prep List
         </button>
 
-      {% else %}
+      {% elif plan.state == "PRODUCTION" %}
+        <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#completeModal">
+          Complete Prep List
+        </button>
+
         <button class="btn btn-warning" type="button"
                 data-bs-toggle="modal" data-bs-target="#confirmModal"
                 data-confirm-title="Reopen for editing"
@@ -28,9 +32,25 @@
                 data-confirm-post="{% url 'planning:plan_reopen' plan.service_date %}">
           Reopen for Editing
         </button>
+
+      {% else %}
+        <button class="btn btn-warning" type="button"
+                data-bs-toggle="modal" data-bs-target="#confirmModal"
+                data-confirm-title="Reopen prep list"
+                data-confirm-body="This will move the prep list back to PRODUCTION so cooks can claim tasks and mark them done again."
+                data-confirm-submit="Reopen"
+                data-confirm-post="{% url 'planning:plan_reopen' plan.service_date %}">
+          Reopen Prep List
+        </button>
       {% endif %}
     </div>
   </div>
+
+  {% if plan.state == "COMPLETE" %}
+    <div class="alert alert-secondary mt-3">
+      This prep list is complete and locked. It's kept as a read-only record — reopen it if you need to change anything.
+    </div>
+  {% endif %}
 
   {% include "planning/partials/progress_section.html" with plan=plan %}
 
@@ -38,12 +58,12 @@
     <div class="secondary-action-panel mt-4">
       <div>
         <h6 class="mb-1">Need to rebuild the generated prep tasks?</h6>
-        <p class="text-muted mb-0">Use this after changing dish selection. Rebuilding resets draft task statuses, assignees, and notes.</p>
+        <p class="text-muted mb-0">Use this after changing dish selection. Tasks for dishes/components no longer selected are removed; other task statuses, assignees, and notes are kept.</p>
       </div>
       <button class="btn btn-outline-warning" type="button"
               data-bs-toggle="modal" data-bs-target="#confirmModal"
               data-confirm-title="Rebuild prep list"
-              data-confirm-body="This rebuilds the prep list from the selected dishes and erases current task statuses, assignees, and notes."
+              data-confirm-body="This syncs the prep list to the selected dishes. Tasks for dishes/components no longer selected will be erased; other task statuses, assignees, and notes are kept."
               data-confirm-submit="Rebuild"
               data-confirm-post="{% url 'planning:plan_refresh' plan.service_date %}">
         Rebuild Prep List
@@ -79,5 +99,7 @@
       <p>No tasks.</p>
     {% endfor %}
   </div>
+
+  {% include "planning/partials/complete_modal.html" with plan=plan groups=groups %}
 </div>
 {% endblock %}

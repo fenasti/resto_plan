@@ -1,0 +1,44 @@
+{% if plan.state == "PRODUCTION" %}
+  <div class="modal fade" id="completeModal" tabindex="-1" aria-hidden="true" {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form method="post" action="{% url 'planning:plan_complete' plan.service_date %}">
+          {% csrf_token %}
+          <div class="modal-header">
+            <h5 class="modal-title">
+              {% if plan.is_complete %}Complete prep list{% else %}Prep list isn't finished yet{% endif %}
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            {% if plan.is_complete %}
+              <p class="mb-0">All {{ plan.task_total }} tasks are done. Completing locks the prep list — tasks, notes, and assignees become read-only.</p>
+            {% else %}
+              <p>Only {{ plan.task_done }} of {{ plan.task_total }} tasks are done. Still pending:</p>
+              <ul class="mb-0">
+                {% for group in groups %}
+                  {% for task in group.tasks %}
+                    {% if task.status != "DONE" %}
+                      <li>{{ group.dish.name }} — {{ task.dish_component.component.name }}
+                        <span class="text-muted">({{ task.get_status_display }})</span>
+                      </li>
+                    {% endif %}
+                  {% endfor %}
+                {% endfor %}
+              </ul>
+              <p class="mt-2 mb-0">You can complete it anyway, but it will lock these as unfinished.</p>
+            {% endif %}
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            {% if plan.is_complete %}
+              <button type="submit" class="btn btn-success">Complete Prep List</button>
+            {% else %}
+              <button type="submit" class="btn btn-warning">Complete Anyway</button>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endif %}

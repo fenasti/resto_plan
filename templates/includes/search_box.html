@@ -1,0 +1,9 @@
+<form method="get" class="mb-3">
+  <div class="input-group" style="max-width: 320px;">
+    <input type="text" name="q" class="form-control" placeholder="Search by name" value="{{ search_query }}">
+    <button class="btn btn-outline-secondary" type="submit">Search</button>
+    {% if search_query %}
+      <a class="btn btn-outline-secondary" href="{{ request.path }}">Clear</a>
+    {% endif %}
+  </div>
+</form>

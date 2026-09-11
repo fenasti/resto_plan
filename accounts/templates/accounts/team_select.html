@@ -5,9 +5,11 @@
 
   <form method="post" class="card prep-card card-body mt-3">
     {% csrf_token %}
+    {% include "includes/non_field_errors.html" %}
     <div class="mb-3">
       <label class="form-label">Choose team</label>
       {{ form.team_id }}
+      {% for error in form.team_id.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
     </div>
     <div class="prep-actions">
       <button class="btn btn-primary" type="submit">Select</button>

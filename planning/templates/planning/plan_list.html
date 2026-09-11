@@ -21,15 +21,21 @@
                 </a>
                 {% if p.state == "DRAFT" %}
                   <span class="badge rounded-pill text-bg-secondary">Draft</span>
-                {% else %}
+                {% elif p.state == "PRODUCTION" %}
                   <span class="badge rounded-pill text-bg-success">Finalized</span>
+                {% else %}
+                  <span class="badge rounded-pill text-bg-dark">Complete</span>
                 {% endif %}
               </div>
 
               {% if p.state == "DRAFT" %}
                 <p class="text-muted mb-0 mt-2">Next step: review your dish selection, rebuild the prep list if needed, then finalize it for the kitchen.</p>
               {% else %}
-                <p class="text-muted mb-0 mt-2">Next step: open the prep sheet to track kitchen progress, or reopen this list if you need to make changes.</p>
+                {% if p.state == "PRODUCTION" %}
+                  <p class="text-muted mb-0 mt-2">Next step: open the prep sheet to track kitchen progress, or reopen this list if you need to make changes.</p>
+                {% else %}
+                  <p class="text-muted mb-0 mt-2">This prep list is complete and locked — kept as a read-only record.</p>
+                {% endif %}
                 {% if p.task_total %}
                   <div class="prep-progress-block mt-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
@@ -63,7 +69,7 @@
                         data-confirm-post="{% url 'planning:plan_erase' p.service_date %}">
                   Erase
                 </button>
-              {% else %}
+              {% elif p.state == "PRODUCTION" %}
                 <a class="btn btn-primary" href="{% url 'planning:plan_sheet' p.service_date %}">
                   Open Prep Sheet
                 </a>
@@ -71,6 +77,18 @@
                         data-bs-toggle="modal" data-bs-target="#confirmModal"
                         data-confirm-title="Reopen for editing"
                         data-confirm-body="This will move the prep list back to DRAFT so you can edit or erase it."
+                        data-confirm-submit="Reopen"
+                        data-confirm-post="{% url 'planning:plan_reopen' p.service_date %}">
+                  Reopen
+                </button>
+              {% else %}
+                <a class="btn btn-primary" href="{% url 'planning:plan_sheet' p.service_date %}">
+                  View Prep Sheet
+                </a>
+                <button class="btn btn-outline-warning" type="button"
+                        data-bs-toggle="modal" data-bs-target="#confirmModal"
+                        data-confirm-title="Reopen prep list"
+                        data-confirm-body="This will move the prep list back to PRODUCTION so cooks can claim tasks and mark them done again."
                         data-confirm-submit="Reopen"
                         data-confirm-post="{% url 'planning:plan_reopen' p.service_date %}">
                   Reopen
@@ -83,6 +101,7 @@
     {% empty %}
       <p>No plans yet.</p>
     {% endfor %}
+    {% include "includes/pagination.html" %}
   </div>
 </div>
 {% endblock %}

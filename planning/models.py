@@ -7,6 +7,7 @@ class PrepPlan(models.Model):
     class PlanState(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
         PRODUCTION = "PRODUCTION", "Production"
+        COMPLETE = "COMPLETE", "Complete"
 
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="plans")
     service_date = models.DateField()
@@ -15,6 +16,8 @@ class PrepPlan(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     finalized_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="plans_finalized")
     finalized_at = models.DateTimeField(null=True, blank=True)
+    completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="plans_completed")
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [

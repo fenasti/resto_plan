@@ -4,13 +4,20 @@
   <h2>{% if view.object %}Edit Dish{% else %}Create Dish{% endif %}</h2>
   <form method="post" class="card card-body mt-3">
     {% csrf_token %}
+    {% include "includes/non_field_errors.html" %}
     <div class="mb-3">
       <label class="form-label">Name</label>
       {{ form.name }}
+      {% for error in form.name.errors %}
+        <div class="text-danger small mt-1">{{ error }}</div>
+      {% endfor %}
     </div>
     <div class="form-check mb-3">
       {{ form.on_use }}
-      <label class="form-check-label">on_use</label>
+      <label class="form-check-label">In use on the menu</label>
+      {% for error in form.on_use.errors %}
+        <div class="text-danger small mt-1">{{ error }}</div>
+      {% endfor %}
     </div>
     <button class="btn btn-primary" type="submit">Save</button>
   </form>

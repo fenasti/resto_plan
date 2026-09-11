@@ -7,23 +7,28 @@
   </p>
   <form method="post" class="card card-body mt-3">
     {% csrf_token %}
+    {% include "includes/non_field_errors.html" %}
     <div class="mb-3">
       <label class="form-label">Prep item name</label>
       {{ form.name }}
+      {% for error in form.name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
       <div class="form-text">Example: Chop chives, Make chimichurri, Check garnish.</div>
     </div>
     <div class="mb-3">
       <label class="form-label">Kind</label>
       {{ form.type }}
+      {% for error in form.type.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
     </div>
     <div class="mb-3">
       <label class="form-label">Short instruction / spec</label>
       {{ form.spec_text }}
+      {% for error in form.spec_text.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
       <div class="form-text">Keep this quick. Use a recipe below for longer instructions.</div>
     </div>
     <div class="mb-3">
       <label class="form-label">Linked recipe (optional)</label>
       {{ form.recipe }}
+      {% for error in form.recipe.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
       <div class="form-text">Recipes are detailed instructions. Not every prep item needs one.</div>
     </div>
     <button class="btn btn-primary" type="submit">Save</button>

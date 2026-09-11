@@ -49,22 +49,34 @@ def set_plandishes(plan: PrepPlan, dish_ids: list[int]) -> None:
         pass
 
 def build_placeholders_hard_reset(plan: PrepPlan) -> None:
+    """Syncs PrepTasks to the plan's current dishes/components.
+
+    Only adds tasks for dish_components that don't have one yet and removes
+    tasks whose dish_component is no longer part of the plan. Existing tasks
+    are left untouched, preserving status/assignee/daily_note.
+    """
     if plan.state != PrepPlan.PlanState.DRAFT:
         raise ValueError("Cannot refresh placeholders in PRODUCTION.")
 
-    plan.tasks.all().delete()
+    dish_ids = [
+        pd.dish_id for pd in plan.plan_dishes.select_related("dish")
+        if pd.dish.team_id == plan.team_id
+    ]
+    target_dc_ids = set(
+        DishComponent.objects.filter(dish_id__in=dish_ids).values_list("id", flat=True)
+    )
+    existing_dc_ids = set(plan.tasks.values_list("dish_component_id", flat=True))
 
-    plandishes = plan.plan_dishes.select_related("dish").order_by("order", "id")
-    tasks = []
-    for pd in plandishes:
-        # dish must belong to same team
-        if pd.dish.team_id != plan.team_id:
-            continue
-        dishcomponents = DishComponent.objects.filter(dish=pd.dish).select_related("dish", "component").order_by("order", "id")
-        for dc in dishcomponents:
-            # Ensure component is also in team (should be if dish is)
-            tasks.append(PrepTask(plan=plan, dish_component=dc, status=PrepTask.TaskStatus.NONE))
-    PrepTask.objects.bulk_create(tasks)
+    stale_dc_ids = existing_dc_ids - target_dc_ids
+    if stale_dc_ids:
+        plan.tasks.filter(dish_component_id__in=stale_dc_ids).delete()
+
+    new_dc_ids = target_dc_ids - existing_dc_ids
+    if new_dc_ids:
+        PrepTask.objects.bulk_create(
+            PrepTask(plan=plan, dish_component_id=dc_id, status=PrepTask.TaskStatus.NONE)
+            for dc_id in new_dc_ids
+        )
 
 def finalize_plan(plan: PrepPlan, user) -> None:
     if plan.state != PrepPlan.PlanState.DRAFT:
@@ -79,13 +91,26 @@ def erase_plan(plan: PrepPlan) -> None:
         raise ValueError("Cannot erase a plan in PRODUCTION.")
     plan.delete()
 
-def reopen_plan(plan: PrepPlan) -> None:
+def complete_plan(plan: PrepPlan, user) -> None:
     if plan.state != PrepPlan.PlanState.PRODUCTION:
         return
-    plan.state = PrepPlan.PlanState.DRAFT
-    plan.finalized_by = None
-    plan.finalized_at = None
-    plan.save(update_fields=["state", "finalized_by", "finalized_at"])
+    plan.state = PrepPlan.PlanState.COMPLETE
+    plan.completed_by = user
+    plan.completed_at = timezone.now()
+    plan.save(update_fields=["state", "completed_by", "completed_at"])
+
+def reopen_plan(plan: PrepPlan) -> None:
+    """Steps the plan back one stage: COMPLETE -> PRODUCTION, PRODUCTION -> DRAFT."""
+    if plan.state == PrepPlan.PlanState.COMPLETE:
+        plan.state = PrepPlan.PlanState.PRODUCTION
+        plan.completed_by = None
+        plan.completed_at = None
+        plan.save(update_fields=["state", "completed_by", "completed_at"])
+    elif plan.state == PrepPlan.PlanState.PRODUCTION:
+        plan.state = PrepPlan.PlanState.DRAFT
+        plan.finalized_by = None
+        plan.finalized_at = None
+        plan.save(update_fields=["state", "finalized_by", "finalized_at"])
 
 @transaction.atomic
 def task_tap(task_id: int, user) -> PrepTask:
@@ -104,6 +129,10 @@ def task_tap(task_id: int, user) -> PrepTask:
         elif task.status == PrepTask.TaskStatus.PLANNED:
             task.status = PrepTask.TaskStatus.NONE
         task.save(update_fields=["status"])
+        return task
+
+    if task.plan.state != PrepPlan.PlanState.PRODUCTION:
+        # COMPLETE (or any other non-editable state): read-only, no-op.
         return task
 
     # PRODUCTION: row tap claims if needed, then toggles planned/done.
@@ -150,6 +179,9 @@ def set_task_note(task_id: int, note: str, user) -> PrepTask:
 
     if not TeamMembership.objects.filter(user=user, team=task.plan.team).exists():
         raise PermissionError("Not a member of this team.")
+
+    if task.plan.state == PrepPlan.PlanState.COMPLETE:
+        return task
 
     task.daily_note = note
     task.save(update_fields=["daily_note"])

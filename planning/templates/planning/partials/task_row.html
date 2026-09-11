@@ -1,12 +1,15 @@
 {% with comp=task.dish_component.component plan=task.plan %}
 <div id="task-{{ task.id }}" class="list-group-item p-0 {% if task.assignee and task.status != 'DONE' %}list-group-item-success{% endif %}">
 
-  <div class="px-3 py-2 task-main"
+  <div class="px-3 py-2 task-main {% if plan.state == 'COMPLETE' %}task-main-locked{% endif %}"
+       {% if plan.state != "COMPLETE" %}
        hx-post="{% url 'planning:task_tap' task.id %}"
        hx-trigger="click[!event.target.closest('.task-control')]"
        hx-target="#task-{{ task.id }}"
        hx-swap="outerHTML"
-       role="button">
+       hx-sync="this:drop"
+       role="button"
+       {% endif %}>
 
     <div class="task-main-left">
       <span>{% if task.status == "DONE" %}✅{% else %}☐{% endif %}</span>
@@ -41,7 +44,8 @@
                 hx-post="{% url 'planning:task_claim' task.id %}"
                 hx-trigger="click consume"
                 hx-target="#task-{{ task.id }}"
-                hx-swap="outerHTML">
+                hx-swap="outerHTML"
+                hx-sync="this:drop">
           {% if task.assignee %}Unclaim{% else %}Claim{% endif %}
         </button>
       {% endif %}
@@ -49,12 +53,13 @@
   </div>
 
   <div class="px-3 pb-2 task-control">
-    {% if note_edit %}
+    {% if note_edit and plan.state != "COMPLETE" %}
       <form method="post"
             class="task-note-form"
             hx-post="{% url 'planning:task_note' task.id %}"
             hx-target="#task-{{ task.id }}"
-            hx-swap="outerHTML">
+            hx-swap="outerHTML"
+            hx-sync="this:drop">
         {% csrf_token %}
         <div class="input-group input-group-sm mt-2">
           <input class="form-control" type="text" name="daily_note" value="{{ task.daily_note }}" placeholder="Daily note (temporary)">
@@ -64,13 +69,16 @@
     {% else %}
       <div class="task-note-row">
         <small class="text-muted task-note-text">{% if task.daily_note %}{{ task.daily_note }}{% else %}No note{% endif %}</small>
-        <button class="btn btn-sm btn-link task-control p-0"
-                hx-get="{% url 'planning:task_note' task.id %}"
-                hx-trigger="click consume"
-                hx-target="#task-{{ task.id }}"
-                hx-swap="outerHTML">
-          <i class="bi bi-pencil-square"></i>
-        </button>
+        {% if plan.state != "COMPLETE" %}
+          <button class="btn btn-sm btn-link task-control p-0"
+                  hx-get="{% url 'planning:task_note' task.id %}"
+                  hx-trigger="click consume"
+                  hx-target="#task-{{ task.id }}"
+                  hx-swap="outerHTML"
+                  hx-sync="this:drop">
+            <i class="bi bi-pencil-square"></i>
+          </button>
+        {% endif %}
       </div>
     {% endif %}
   </div>

@@ -1,4 +1,13 @@
 .task-main { cursor: pointer; }
+.task-main.task-main-locked { cursor: default; }
+
+.task-main.htmx-request,
+.task-control.htmx-request,
+.task-note-form.htmx-request {
+  opacity: .55;
+  pointer-events: none;
+  transition: opacity .1s ease-in;
+}
 
 .prep-shell {
   max-width: 760px;
