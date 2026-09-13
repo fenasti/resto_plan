@@ -1,0 +1,26 @@
+{% load form_extras %}
+{% if attrs.form.non_field_errors %}
+  <div class="alert alert-danger py-2 mb-3">
+    {% for error in attrs.form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+  </div>
+{% endif %}
+{% for hidden in attrs.form.hidden_fields %}{{ hidden }}{% endfor %}
+{% for field in attrs.form.visible_fields %}
+  {% with wtype=field|widget_type %}
+    <div class="mb-3{% if wtype == 'checkboxinput' %} form-check{% endif %}">
+      {% if wtype == 'checkboxinput' %}
+        {% if field.errors %}{{ field|add_class:"form-check-input is-invalid" }}{% else %}{{ field|add_class:"form-check-input" }}{% endif %}
+        <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {% else %}
+        <label class="form-label{% if attrs.unlabeled %} visually-hidden{% endif %}" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {% if wtype == 'select' or wtype == 'selectmultiple' %}
+          {% if field.errors %}{{ field|add_class:"form-select is-invalid" }}{% else %}{{ field|add_class:"form-select" }}{% endif %}
+        {% else %}
+          {% if field.errors %}{{ field|add_class:"form-control is-invalid" }}{% else %}{{ field|add_class:"form-control" }}{% endif %}
+        {% endif %}
+      {% endif %}
+      {% if field.help_text %}<div class="form-text">{{ field.help_text|safe }}</div>{% endif %}
+      {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+    </div>
+  {% endwith %}
+{% endfor %}

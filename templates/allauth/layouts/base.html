@@ -1,30 +1,36 @@
-{% load static %}
+{% load i18n static %}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Prep App</title>
+  <title>{% block head_title %}{% trans "Account" %}{% endblock head_title %} · Prep App</title>
 
   <!-- Bootstrap -->
   <link href="{% static 'vendor/bootstrap/bootstrap.min.css' %}" rel="stylesheet">
   <!-- Bootstrap Icons -->
   <link href="{% static 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}" rel="stylesheet">
-  <!-- HTMX -->
-  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
 
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  {% block extra_head %}{% endblock extra_head %}
 </head>
-<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body>
   {% include "includes/navbar.html" %}
   {% include "includes/messages.html" %}
-  {% include "includes/confirm_modal.html" %}
 
-  <main>
-    {% block content %}{% endblock %}
+  <main class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-12 col-sm-9 col-md-7 {% block container_col %}col-lg-5{% endblock container_col %}">
+        <div class="card prep-card shadow-sm">
+          <div class="card-body p-4 p-md-5">
+            {% block content %}{% endblock content %}
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
 
   <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
-  <script src="{% static 'js/app.js' %}"></script>
+  {% block extra_body %}{% endblock extra_body %}
 </body>
 </html>
