@@ -48,7 +48,7 @@ class DishDetailView(TeamMemberRequiredMixin, DetailView):
     context_object_name = "dish"
 
     def get_queryset(self):
-        return Dish.objects.filter(team=self.request.team)
+        return Dish.objects.filter(team=self.request.team).prefetch_related("dish_components__component")
 
 
 # ===== Permissioned CRUD =====
@@ -150,8 +150,8 @@ class DishDeleteView(TeamPermissionRequiredMixin, DeleteView):
         )
 
         if has_production_history:
-            dish.on_use = False
-            dish.save(update_fields=["on_use"])
+            dish.is_active = False
+            dish.save(update_fields=["is_active"])
             messages.warning(
                 request,
                 f"'{dish_name}' is used in a production plan, so it was turned off instead of deleted.",
@@ -170,8 +170,8 @@ class DishDeleteView(TeamPermissionRequiredMixin, DeleteView):
                 ).delete()
                 dish.delete()
         except ProtectedError:
-            dish.on_use = False
-            dish.save(update_fields=["on_use"])
+            dish.is_active = False
+            dish.save(update_fields=["is_active"])
             messages.warning(
                 request,
                 f"'{dish_name}' still has protected references, so it was turned off instead of deleted.",
@@ -284,11 +284,12 @@ class ComponentDeleteView(TeamPermissionRequiredMixin, DeleteView):
 
 @login_required
 @team_permission_required("can_manage_menu")
-def toggle_on_use(request, pk: int):
+def toggle_dish_active(request, pk: int):
     dish = get_object_or_404(Dish, pk=pk, team=request.team)
-    dish.on_use = not dish.on_use
-    dish.save(update_fields=["on_use"])
-    messages.success(request, f"Dish '{dish.name}' on_use set to {dish.on_use}")
+    dish.is_active = not dish.is_active
+    dish.save(update_fields=["is_active"])
+    status = "active" if dish.is_active else "off"
+    messages.success(request, f"Dish '{dish.name}' marked {status}.")
     return redirect("menu:dish_list")
 
 

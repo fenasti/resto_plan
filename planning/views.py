@@ -23,10 +23,16 @@ def _hydrate_plan_progress(plan: PrepPlan) -> PrepPlan:
     plan._task_done = plan.tasks.filter(status=PrepTask.TaskStatus.DONE).count()
     return plan
 
-@login_required
-def create_tomorrow(request):
+def _require_active_team(request):
     if not request.team or not request.membership:
         return redirect("accounts:team_select")
+    return None
+
+@login_required
+def create_tomorrow(request):
+    redirect_response = _require_active_team(request)
+    if redirect_response:
+        return redirect_response
 
     tomorrow = timezone.localdate() + datetime.timedelta(days=1)
     plan = services.get_or_create_draft_plan(request.team, tomorrow, request.user)
@@ -81,7 +87,7 @@ class PlanBuilderView(TeamMemberRequiredMixin, TemplateView):
                 services.erase_plan(plan)
                 messages.success(request, "Prep list erased.")
                 return redirect("planning:plan_list")
-            except Exception as e:
+            except (ValueError, PermissionError) as e:
                 messages.error(request, str(e))
                 return redirect("planning:plan_builder", date_str=str(plan.service_date))
 
@@ -118,7 +124,7 @@ class PlanBuilderView(TeamMemberRequiredMixin, TemplateView):
                 messages.success(request, "Prep list finalized. Cooks can claim tasks and mark them done.")
                 return redirect("planning:plan_sheet", date_str=str(plan.service_date))
 
-        except Exception as e:
+        except (ValueError, PermissionError) as e:
             messages.error(request, str(e))
 
         return redirect("planning:plan_builder", date_str=str(plan.service_date))
@@ -126,8 +132,9 @@ class PlanBuilderView(TeamMemberRequiredMixin, TemplateView):
 
 @login_required
 def finalize_plan_view(request, date_str: str):
-    if not request.team or not request.membership:
-        return redirect("accounts:team_select")
+    redirect_response = _require_active_team(request)
+    if redirect_response:
+        return redirect_response
     service_date = _parse_date(date_str)
     plan = PrepPlan.objects.filter(team=request.team, service_date=service_date).first()
     if not plan:
@@ -140,8 +147,9 @@ def finalize_plan_view(request, date_str: str):
 def complete_plan_view(request, date_str: str):
     if request.method != "POST":
         return HttpResponse(status=405)
-    if not request.team or not request.membership:
-        return redirect("accounts:team_select")
+    redirect_response = _require_active_team(request)
+    if redirect_response:
+        return redirect_response
     service_date = _parse_date(date_str)
     plan = PrepPlan.objects.filter(team=request.team, service_date=service_date).first()
     if not plan:
@@ -152,8 +160,9 @@ def complete_plan_view(request, date_str: str):
 
 @login_required
 def refresh_plan_view(request, date_str: str):
-    if not request.team or not request.membership:
-        return redirect("accounts:team_select")
+    redirect_response = _require_active_team(request)
+    if redirect_response:
+        return redirect_response
     service_date = _parse_date(date_str)
     plan = PrepPlan.objects.filter(team=request.team, service_date=service_date).first()
     if not plan:
@@ -164,8 +173,9 @@ def refresh_plan_view(request, date_str: str):
 
 @login_required
 def erase_plan_view(request, date_str: str):
-    if not request.team or not request.membership:
-        return redirect("accounts:team_select")
+    redirect_response = _require_active_team(request)
+    if redirect_response:
+        return redirect_response
     service_date = _parse_date(date_str)
     plan = PrepPlan.objects.filter(team=request.team, service_date=service_date).first()
     if not plan:
@@ -176,8 +186,9 @@ def erase_plan_view(request, date_str: str):
 
 @login_required
 def reopen_plan_view(request, date_str: str):
-    if not request.team or not request.membership:
-        return redirect("accounts:team_select")
+    redirect_response = _require_active_team(request)
+    if redirect_response:
+        return redirect_response
     service_date = _parse_date(date_str)
     plan = PrepPlan.objects.filter(team=request.team, service_date=service_date).first()
     if not plan:

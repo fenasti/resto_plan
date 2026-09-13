@@ -41,7 +41,7 @@ class TeamPermissionRequiredMixin(TeamMemberRequiredMixin):
                 return redirect(reverse("accounts:team_select"))
             return redirect(reverse("accounts:team_start"))
         if self.required_flag and not getattr(membership, self.required_flag, False):
-            # Fallback: owners/admins can do everything unless you want stricter.
+            # Owners/admins always pass, regardless of their individual flags.
             if membership.role not in (TeamMembership.Role.OWNER, TeamMembership.Role.ADMIN):
                 return redirect(reverse("home:index"))
         return super().dispatch(request, *args, **kwargs)

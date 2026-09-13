@@ -13,9 +13,9 @@
       {% endfor %}
     </div>
     <div class="form-check mb-3">
-      {{ form.on_use }}
+      {{ form.is_active }}
       <label class="form-check-label">In use on the menu</label>
-      {% for error in form.on_use.errors %}
+      {% for error in form.is_active.errors %}
         <div class="text-danger small mt-1">{{ error }}</div>
       {% endfor %}
     </div>

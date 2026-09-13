@@ -149,7 +149,7 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
                 services.erase_order(order)
                 messages.success(request, "Order list erased.")
                 return redirect("ordering:order_list")
-            except Exception as exc:
+            except (ValueError, PermissionError) as exc:
                 messages.error(request, str(exc))
                 return redirect("ordering:order_detail", date_str=str(order.order_date))
 
@@ -158,7 +158,7 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
             try:
                 services.remove_order_item(item_id, request.user)
                 messages.success(request, "Item removed from the order list.")
-            except Exception as exc:
+            except (ValueError, PermissionError) as exc:
                 messages.error(request, str(exc))
             return redirect("ordering:order_detail", date_str=str(order.order_date))
 
@@ -173,7 +173,7 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
                     else:
                         messages.info(request, f"{purchase_item.name} is already on this order list.")
                     return redirect("ordering:order_detail", date_str=str(order.order_date))
-                except Exception as exc:
+                except (ValueError, PermissionError) as exc:
                     messages.error(request, str(exc))
             create_item_form = QuickCreatePurchaseItemForm(team=request.team)
             return render(
@@ -199,7 +199,7 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
                     )
                     messages.success(request, f"Created and added {purchase_item.name}.")
                     return redirect("ordering:order_detail", date_str=str(order.order_date))
-                except Exception as exc:
+                except (ValueError, PermissionError) as exc:
                     messages.error(request, str(exc))
             add_existing_form = AddExistingOrderItemForm(team=request.team)
             return render(

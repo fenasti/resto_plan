@@ -18,7 +18,7 @@ urlpatterns = [
     path("dishes/create/", views.DishCreateView.as_view(), name="dish_create"),
     path("dishes/<int:pk>/edit/", views.DishUpdateView.as_view(), name="dish_edit"),
     path("dishes/<int:pk>/delete/", views.DishDeleteView.as_view(), name="dish_delete"),
-    path("dishes/<int:pk>/toggle-on-use/", views.toggle_on_use, name="dish_toggle_on_use"),
+    path("dishes/<int:pk>/toggle-active/", views.toggle_dish_active, name="dish_toggle_active"),
     path("dishes/<int:pk>/components/edit/", views.edit_dish_components, name="dish_components_edit"),
     path("dish-components/<int:pk>/remove/", views.remove_dish_component, name="dish_component_remove"),
 

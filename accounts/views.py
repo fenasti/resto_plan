@@ -41,7 +41,7 @@ class TeamSelectView(LoginRequiredMixin, TemplateView):
     template_name = "accounts/team_select.html"
 
     def dispatch(self, request, *args, **kwargs):
-        # ✅ Let LoginRequiredMixin redirect anonymous users first
+        # Let LoginRequiredMixin redirect anonymous users first
         if not request.user.is_authenticated:
             return super().dispatch(request, *args, **kwargs)
 

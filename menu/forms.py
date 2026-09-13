@@ -9,10 +9,10 @@ class DishForm(forms.ModelForm):
 
     class Meta:
         model = Dish
-        fields = ["name", "on_use"]
+        fields = ["name", "is_active"]
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "on_use": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def clean_name(self):

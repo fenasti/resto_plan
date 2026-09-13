@@ -35,7 +35,7 @@ class DuplicateNameFormValidationTests(TestCase):
 
     def test_dish_create_duplicate_name_shows_error_instead_of_crashing(self):
         Dish.objects.create(team=self.team, name="Ramen")
-        response = self.client.post(reverse("menu:dish_create"), {"name": "Ramen", "on_use": "on"})
+        response = self.client.post(reverse("menu:dish_create"), {"name": "Ramen", "is_active": "on"})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "already exists")
         self.assertEqual(Dish.objects.filter(team=self.team, name="Ramen").count(), 1)
@@ -43,7 +43,7 @@ class DuplicateNameFormValidationTests(TestCase):
     def test_dish_update_keeping_its_own_name_is_allowed(self):
         dish = Dish.objects.create(team=self.team, name="Ramen")
         response = self.client.post(
-            reverse("menu:dish_edit", args=[dish.pk]), {"name": "Ramen", "on_use": "on"}
+            reverse("menu:dish_edit", args=[dish.pk]), {"name": "Ramen", "is_active": "on"}
         )
         self.assertRedirects(response, reverse("menu:dish_list"))
 
@@ -103,7 +103,7 @@ class DishListSearchAndPaginationTests(TestCase):
 
 class TeamPermissionRequiredDecoratorTests(TestCase):
     """
-    toggle_on_use / edit_dish_components / remove_dish_component share
+    toggle_dish_active / edit_dish_components / remove_dish_component share
     @team_permission_required("can_manage_menu") instead of each repeating
     the membership/role check inline.
     """
@@ -122,20 +122,20 @@ class TeamPermissionRequiredDecoratorTests(TestCase):
         session.save()
 
     def test_member_without_flag_is_redirected_away(self):
-        response = self.client.post(reverse("menu:dish_toggle_on_use", args=[self.dish.pk]))
+        response = self.client.post(reverse("menu:dish_toggle_active", args=[self.dish.pk]))
         self.assertRedirects(response, reverse("home:index"))
         self.dish.refresh_from_db()
-        self.assertTrue(self.dish.on_use)
+        self.assertTrue(self.dish.is_active)
 
     def test_member_with_flag_is_allowed(self):
         membership = TeamMembership.objects.get(user=self.user, team=self.team)
         membership.can_manage_menu = True
         membership.save()
 
-        response = self.client.post(reverse("menu:dish_toggle_on_use", args=[self.dish.pk]))
+        response = self.client.post(reverse("menu:dish_toggle_active", args=[self.dish.pk]))
         self.assertRedirects(response, reverse("menu:dish_list"))
         self.dish.refresh_from_db()
-        self.assertFalse(self.dish.on_use)
+        self.assertFalse(self.dish.is_active)
 
 
 class MenuFormErrorsVisibleTests(TestCase):
@@ -158,7 +158,7 @@ class MenuFormErrorsVisibleTests(TestCase):
         session.save()
 
     def test_dish_create_missing_name_shows_field_error(self):
-        response = self.client.post(reverse("menu:dish_create"), {"on_use": "on"})
+        response = self.client.post(reverse("menu:dish_create"), {"is_active": "on"})
         self.assertContains(response, "This field is required")
 
 

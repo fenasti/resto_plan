@@ -1,6 +1,14 @@
 import secrets
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+
+MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+def validate_avatar_size(value):
+    if value.size > MAX_AVATAR_SIZE_BYTES:
+        raise ValidationError("Image file too large. Max size is 5MB.")
 
 class Team(models.Model):
     name = models.CharField(max_length=200, unique=True)
@@ -32,7 +40,7 @@ class TeamMembership(models.Model):
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.MEMBER)
     joined_at = models.DateTimeField(auto_now_add=True)
 
-    # Fine-grained permissions (what you asked for)
+    # Fine-grained permissions, independent of role
     can_manage_menu = models.BooleanField(default=False)     # dishes/components/dishcomponents
     can_manage_recipes = models.BooleanField(default=False)  # recipes CRUD
     can_manage_team = models.BooleanField(default=False)     # member roles, rotate code, etc.
@@ -48,7 +56,7 @@ class TeamMembership(models.Model):
 
 class CookProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="cookprofile")
-    avatar = models.ImageField(blank=True, null=True)
+    avatar = models.ImageField(blank=True, null=True, validators=[validate_avatar_size])
     display_name = models.CharField(max_length=150, blank=True)
 
     def __str__(self):

@@ -27,7 +27,7 @@ def get_or_create_draft_plan(team, service_date, user) -> PrepPlan:
 def ensure_default_plandishes(plan: PrepPlan) -> None:
     if plan.plan_dishes.exists():
         return
-    dishes = Dish.objects.filter(team=plan.team, on_use=True).order_by("name")
+    dishes = Dish.objects.filter(team=plan.team, is_active=True).order_by("name")
     bulk = [PlanDish(plan=plan, dish=d, order=i+1) for i, d in enumerate(dishes)]
     PlanDish.objects.bulk_create(bulk, ignore_conflicts=True)
 

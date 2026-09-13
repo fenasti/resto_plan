@@ -4,7 +4,7 @@ from accounts.models import Team
 class Dish(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="dishes")
     name = models.CharField(max_length=200)
-    on_use = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         constraints = [

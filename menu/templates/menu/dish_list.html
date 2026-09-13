@@ -20,14 +20,14 @@
           <a href="{% url 'menu:dish_detail' dish.pk %}" class="text-decoration-none">{{ dish.name }}</a>
 
           <div class="d-flex gap-2 align-items-center">
-            {% if dish.on_use %}
-              <span class="badge text-bg-success">on_use</span>
+            {% if dish.is_active %}
+              <span class="badge text-bg-success">Active</span>
             {% else %}
-              <span class="badge text-bg-secondary">off</span>
+              <span class="badge text-bg-secondary">Off</span>
             {% endif %}
 
             {% if active_membership and active_membership.can_manage_menu %}
-              <form method="post" action="{% url 'menu:dish_toggle_on_use' dish.pk %}">
+              <form method="post" action="{% url 'menu:dish_toggle_active' dish.pk %}">
                 {% csrf_token %}
                 <button class="btn btn-sm btn-outline-secondary" type="submit">Toggle</button>
               </form>

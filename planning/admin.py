@@ -1,3 +1,3 @@
 from django.contrib import admin
 
-# Register your models here.
+# Intentionally empty: prep plans are managed in-app, not via Django admin.
