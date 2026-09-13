@@ -4,10 +4,18 @@
   <div class="card prep-card shadow-sm">
     <div class="card-body">
       <h2 class="mb-2">Get Started With Your Team</h2>
-      <p class="text-muted mb-0">Create a new workspace for your restaurant, or join an existing team with a code.</p>
+      <p class="text-muted mb-0">
+        {% if request.user.is_staff %}
+          Create a new workspace for your restaurant, or join an existing team with a code.
+        {% else %}
+          Ask your team's admin for a join code to get started.
+        {% endif %}
+      </p>
 
       <div class="prep-actions mt-4">
-        <a class="btn btn-primary" href="{% url 'accounts:team_create' %}">Create a New Team</a>
+        {% if request.user.is_staff %}
+          <a class="btn btn-primary" href="{% url 'accounts:team_create' %}">Create a New Team</a>
+        {% endif %}
         <a class="btn btn-outline-secondary" href="{% url 'accounts:team_join' %}">Join an Existing Team</a>
       </div>
     </div>

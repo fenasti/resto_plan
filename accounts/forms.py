@@ -37,6 +37,11 @@ class TeamSelectForm(forms.Form):
 
 
 class MembershipUpdateForm(forms.ModelForm):
+    """
+    Used to update any member except the workspace owner (the owner's role
+    can't be changed here, so OWNER is not a selectable choice).
+    """
+
     class Meta:
         model = TeamMembership
         fields = ["role", "can_manage_menu", "can_manage_recipes", "can_manage_team"]
@@ -46,6 +51,13 @@ class MembershipUpdateForm(forms.ModelForm):
             "can_manage_recipes": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "can_manage_team": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["role"].choices = [
+            (TeamMembership.Role.ADMIN, TeamMembership.Role.ADMIN.label),
+            (TeamMembership.Role.MEMBER, TeamMembership.Role.MEMBER.label),
+        ]
 
 
 class PlatformStaffToggleForm(forms.Form):

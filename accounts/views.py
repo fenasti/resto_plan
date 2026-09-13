@@ -109,7 +109,8 @@ class TeamJoinView(LoginRequiredMixin, FormView):
 
         membership, created = TeamMembership.objects.get_or_create(user=self.request.user, team=team)
         if created:
-            # Default member perms: none
+            # New members can manage menu/recipes by default; team admin
+            # access is granted separately by an OWNER/ADMIN.
             messages.success(self.request, f"Joined team: {team.name}")
         else:
             messages.info(self.request, f"Already in team: {team.name}")
@@ -118,7 +119,11 @@ class TeamJoinView(LoginRequiredMixin, FormView):
         return super().form_valid(form)
 
 
-class TeamCreateView(LoginRequiredMixin, FormView):
+class TeamCreateView(PlatformAdminRequiredMixin, FormView):
+    """
+    Creating a new workspace is a platform-admin action (request.user.is_staff),
+    not something every team member can do.
+    """
     template_name = "accounts/team_create.html"
     form_class = TeamCreateForm
     success_url = reverse_lazy("home:index")
@@ -169,21 +174,35 @@ class TeamManageView(TeamPermissionRequiredMixin, TemplateView):
             messages.success(request, "Join code rotated.")
             return redirect("accounts:team_manage")
 
-        if action == "update_member":
+        if action in ("update_member", "remove_member"):
             membership_id = int(request.POST.get("membership_id"))
             membership = get_object_or_404(TeamMembership, id=membership_id, team=team)
+
+            # The workspace owner is fixed: no one can demote or remove them
+            # here, so an admin can never lock the real owner out.
+            if membership.role == TeamMembership.Role.OWNER:
+                messages.error(request, "The workspace owner can't be changed or removed here.")
+                return redirect("accounts:team_manage")
+
+            if action == "remove_member":
+                removed_username = membership.user.username
+                membership.delete()
+                messages.success(request, f"Removed {removed_username} from the team.")
+                return redirect("accounts:team_manage")
+
             form = MembershipUpdateForm(request.POST, instance=membership)
             if form.is_valid():
                 updated = form.save()
-                # Owners/Admins should always have manage_team to avoid lockout
-                if updated.role in (TeamMembership.Role.OWNER, TeamMembership.Role.ADMIN):
-                    if not updated.can_manage_team:
-                        updated.can_manage_team = True
-                    if not updated.can_manage_menu:
-                        updated.can_manage_menu = True
-                    if not updated.can_manage_recipes:
-                        updated.can_manage_recipes = True
-                    updated.save(update_fields=["can_manage_team", "can_manage_menu", "can_manage_recipes"])
+                # Admins should always have full perms, same as the owner
+                if updated.role == TeamMembership.Role.ADMIN:
+                    fields_to_set = [
+                        f for f in ("can_manage_team", "can_manage_menu", "can_manage_recipes")
+                        if not getattr(updated, f)
+                    ]
+                    if fields_to_set:
+                        for f in fields_to_set:
+                            setattr(updated, f, True)
+                        updated.save(update_fields=fields_to_set)
                 messages.success(request, "Member updated.")
             else:
                 messages.error(request, "Invalid member update.")

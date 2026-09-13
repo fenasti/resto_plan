@@ -40,15 +40,22 @@ class TeamMembership(models.Model):
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.MEMBER)
     joined_at = models.DateTimeField(auto_now_add=True)
 
-    # Fine-grained permissions, independent of role
-    can_manage_menu = models.BooleanField(default=False)     # dishes/components/dishcomponents
-    can_manage_recipes = models.BooleanField(default=False)  # recipes CRUD
+    # Every member can do everything by default (horizontal kitchen
+    # workflow). These flags exist to let an OWNER/ADMIN restrict a
+    # specific person later, not to lock things down by default.
+    can_manage_menu = models.BooleanField(default=True)      # dishes/components/dishcomponents
+    can_manage_recipes = models.BooleanField(default=True)   # recipes CRUD
     can_manage_team = models.BooleanField(default=False)     # member roles, rotate code, etc.
 
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["user", "team"], name="uniq_user_team_membership")
         ]
+
+    @property
+    def is_team_admin(self) -> bool:
+        """High rank within this team: manage members, rotate join code, delete menu items."""
+        return self.can_manage_team or self.role != self.Role.MEMBER
 
     def __str__(self):
         return f"{self.user} in {self.team} ({self.role})"

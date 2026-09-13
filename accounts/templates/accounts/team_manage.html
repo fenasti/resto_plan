@@ -30,60 +30,74 @@
   <div class="mt-4">
     <div class="d-flex flex-column gap-3">
       {% for m in memberships %}
-        <form method="post" class="card prep-card shadow-sm team-member-card">
-          <div class="card-body">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="update_member">
-            <input type="hidden" name="membership_id" value="{{ m.id }}">
-
-            <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
+        {% if m.role == "OWNER" %}
+          <div class="card prep-card shadow-sm team-member-card">
+            <div class="card-body d-flex justify-content-between align-items-center">
               <div>
                 <h5 class="mb-1">{{ m.user.username }}</h5>
-                <div class="text-muted small">Adjust role and team access for this member.</div>
+                <div class="text-muted small">Workspace owner. Ownership can't be transferred here.</div>
               </div>
-              <div class="small text-muted align-self-start align-self-md-center">Current role: {{ m.role }}</div>
-            </div>
-
-            <div class="row g-3 mt-1">
-              <div class="col-12 col-md-4">
-                <label class="form-label">Role</label>
-                <select class="form-select" name="role">
-                  <option value="OWNER" {% if m.role == "OWNER" %}selected{% endif %}>OWNER</option>
-                  <option value="ADMIN" {% if m.role == "ADMIN" %}selected{% endif %}>ADMIN</option>
-                  <option value="MEMBER" {% if m.role == "MEMBER" %}selected{% endif %}>MEMBER</option>
-                </select>
-              </div>
-
-              <div class="col-12 col-sm-4 col-md-2">
-                <label class="form-label d-block">Menu</label>
-                <div class="form-check team-permission-check">
-                  <input class="form-check-input" type="checkbox" name="can_manage_menu" {% if m.can_manage_menu %}checked{% endif %}>
-                  <label class="form-check-label">Can manage</label>
-                </div>
-              </div>
-
-              <div class="col-12 col-sm-4 col-md-3">
-                <label class="form-label d-block">Recipes</label>
-                <div class="form-check team-permission-check">
-                  <input class="form-check-input" type="checkbox" name="can_manage_recipes" {% if m.can_manage_recipes %}checked{% endif %}>
-                  <label class="form-check-label">Can manage</label>
-                </div>
-              </div>
-
-              <div class="col-12 col-sm-4 col-md-3">
-                <label class="form-label d-block">Team</label>
-                <div class="form-check team-permission-check">
-                  <input class="form-check-input" type="checkbox" name="can_manage_team" {% if m.can_manage_team %}checked{% endif %}>
-                  <label class="form-check-label">Can manage</label>
-                </div>
-              </div>
-            </div>
-
-            <div class="team-member-actions mt-3">
-              <button class="btn btn-primary" type="submit">Save Member</button>
+              <span class="badge text-bg-dark">OWNER</span>
             </div>
           </div>
-        </form>
+        {% else %}
+          <form method="post" class="card prep-card shadow-sm team-member-card">
+            <div class="card-body">
+              {% csrf_token %}
+              <input type="hidden" name="membership_id" value="{{ m.id }}">
+
+              <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
+                <div>
+                  <h5 class="mb-1">{{ m.user.username }}</h5>
+                  <div class="text-muted small">Adjust role and team access for this member.</div>
+                </div>
+                <div class="small text-muted align-self-start align-self-md-center">Current role: {{ m.role }}</div>
+              </div>
+
+              <div class="row g-3 mt-1">
+                <div class="col-12 col-md-4">
+                  <label class="form-label">Role</label>
+                  <select class="form-select" name="role">
+                    <option value="ADMIN" {% if m.role == "ADMIN" %}selected{% endif %}>ADMIN</option>
+                    <option value="MEMBER" {% if m.role == "MEMBER" %}selected{% endif %}>MEMBER</option>
+                  </select>
+                </div>
+
+                <div class="col-12 col-sm-4 col-md-2">
+                  <label class="form-label d-block">Menu</label>
+                  <div class="form-check team-permission-check">
+                    <input class="form-check-input" type="checkbox" name="can_manage_menu" {% if m.can_manage_menu %}checked{% endif %}>
+                    <label class="form-check-label">Can manage</label>
+                  </div>
+                </div>
+
+                <div class="col-12 col-sm-4 col-md-3">
+                  <label class="form-label d-block">Recipes</label>
+                  <div class="form-check team-permission-check">
+                    <input class="form-check-input" type="checkbox" name="can_manage_recipes" {% if m.can_manage_recipes %}checked{% endif %}>
+                    <label class="form-check-label">Can manage</label>
+                  </div>
+                </div>
+
+                <div class="col-12 col-sm-4 col-md-3">
+                  <label class="form-label d-block">Team</label>
+                  <div class="form-check team-permission-check">
+                    <input class="form-check-input" type="checkbox" name="can_manage_team" {% if m.can_manage_team %}checked{% endif %}>
+                    <label class="form-check-label">Can manage</label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="team-member-actions mt-3">
+                <button class="btn btn-primary" type="submit" name="action" value="update_member">Save Member</button>
+                <button class="btn btn-outline-danger" type="submit" name="action" value="remove_member"
+                        onclick="return confirm(&quot;Remove {{ m.user.username }} from this team?&quot;);">
+                  Remove From Team
+                </button>
+              </div>
+            </div>
+          </form>
+        {% endif %}
       {% endfor %}
     </div>
   </div>

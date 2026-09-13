@@ -148,17 +148,19 @@
         </a>
       </div>
 
-      <div class="col-12 col-sm-6 col-xl-4">
-        <a class="card prep-card dashboard-link-card text-decoration-none h-100 shadow-sm" href="{% url 'accounts:team_create' %}">
-          <div class="card-body">
-            <h3 class="h6 mb-2">Create Workspace</h3>
-            <p class="text-muted mb-0">Open another workspace if you manage more than one operation.</p>
-          </div>
-        </a>
-      </div>
+      {% if request.user.is_staff %}
+        <div class="col-12 col-sm-6 col-xl-4">
+          <a class="card prep-card dashboard-link-card text-decoration-none h-100 shadow-sm" href="{% url 'accounts:team_create' %}">
+            <div class="card-body">
+              <h3 class="h6 mb-2">Create Workspace</h3>
+              <p class="text-muted mb-0">Open another workspace if you manage more than one operation.</p>
+            </div>
+          </a>
+        </div>
+      {% endif %}
 
       {% if active_membership %}
-        {% if active_membership.can_manage_team or active_membership.role != "MEMBER" %}
+        {% if active_membership.is_team_admin %}
           <div class="col-12 col-sm-6 col-xl-4">
             <a class="card prep-card dashboard-link-card text-decoration-none h-100 shadow-sm" href="{% url 'accounts:team_manage' %}">
               <div class="card-body">
