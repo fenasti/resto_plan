@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from accounts.models import Team
 from menu.models import Dish, DishComponent
 
@@ -78,18 +79,63 @@ class PrepTask(models.Model):
         DONE = "DONE", "Done"
 
     plan = models.ForeignKey(PrepPlan, on_delete=models.CASCADE, related_name="tasks")
-    dish_component = models.ForeignKey(DishComponent, on_delete=models.PROTECT)
+    dish_component = models.ForeignKey(DishComponent, null=True, blank=True, on_delete=models.PROTECT)
+    component = models.ForeignKey(
+        "menu.Component", null=True, blank=True, on_delete=models.PROTECT, related_name="standalone_tasks"
+    )
+    recipe = models.ForeignKey(
+        "menu.Recipe", null=True, blank=True, on_delete=models.SET_NULL, related_name="adhoc_tasks"
+    )
+    manual_label = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=20, choices=TaskStatus.choices, default=TaskStatus.NONE)
     assignee = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     daily_note = models.TextField(blank=True)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["plan", "dish_component"], name="uniq_plan_dishcomponent_task")
+            models.UniqueConstraint(fields=["plan", "dish_component"], name="uniq_plan_dishcomponent_task"),
+            models.CheckConstraint(
+                check=(
+                    Q(dish_component__isnull=False, component__isnull=True, recipe__isnull=True, manual_label="")
+                    | Q(dish_component__isnull=True, component__isnull=False, recipe__isnull=True, manual_label="")
+                    | Q(dish_component__isnull=True, component__isnull=True, recipe__isnull=False, manual_label="")
+                    | (Q(dish_component__isnull=True, component__isnull=True, recipe__isnull=True) & ~Q(manual_label=""))
+                ),
+                name="prep_task_exactly_one_origin",
+            ),
         ]
         indexes = [
             models.Index(fields=["plan", "status"]),
         ]
 
+    @property
+    def origin(self) -> str:
+        if self.dish_component_id:
+            return "dish"
+        if self.component_id:
+            return "standalone"
+        if self.recipe_id:
+            return "adhoc_recipe"
+        return "adhoc_manual"
+
+    @property
+    def display_name(self) -> str:
+        if self.dish_component_id:
+            return self.dish_component.component.name
+        if self.component_id:
+            return self.component.name
+        if self.recipe_id:
+            return self.recipe.name
+        return self.manual_label
+
+    @property
+    def linked_recipe_id(self):
+        """The recipe to link to (if any), regardless of task origin."""
+        if self.dish_component_id:
+            return self.dish_component.component.recipe_id
+        if self.component_id:
+            return self.component.recipe_id
+        return self.recipe_id
+
     def __str__(self):
-        return f"{self.plan.service_date}: {self.dish_component.component.name} ({self.status})"
+        return f"{self.plan.service_date}: {self.display_name} ({self.status})"

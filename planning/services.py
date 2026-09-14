@@ -5,7 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import TeamMembership
-from menu.models import Dish, DishComponent
+from menu.models import Component, Dish, DishComponent
 from .models import PrepPlan, PlanDish, PrepTask
 
 def _assert_team_member(user, team) -> None:
@@ -51,9 +51,17 @@ def set_plandishes(plan: PrepPlan, dish_ids: list[int]) -> None:
 def build_placeholders_hard_reset(plan: PrepPlan) -> None:
     """Syncs PrepTasks to the plan's current dishes/components.
 
-    Only adds tasks for dish_components that don't have one yet and removes
-    tasks whose dish_component is no longer part of the plan. Existing tasks
-    are left untouched, preserving status/assignee/daily_note.
+    Only adds tasks for dish_components/standalone components that don't
+    have one yet, and removes tasks for ones no longer selected. Existing
+    tasks are left untouched, preserving status/assignee/daily_note. Ad hoc
+    tasks (manual label or a bare recipe, added directly on the Prep List)
+    are never touched by this sync — they're removed only by the user's own
+    explicit "Remove" action.
+
+    New tasks default to PLANNED (checked): most components genuinely need
+    prep every day, so the Builder starts everything selected and the cook
+    unchecks the exceptions (already prepped, still have stock, etc.)
+    instead of having to check every single item from scratch each day.
     """
     if plan.state != PrepPlan.PlanState.DRAFT:
         raise ValueError("Cannot refresh placeholders in PRODUCTION.")
@@ -65,7 +73,9 @@ def build_placeholders_hard_reset(plan: PrepPlan) -> None:
     target_dc_ids = set(
         DishComponent.objects.filter(dish_id__in=dish_ids).values_list("id", flat=True)
     )
-    existing_dc_ids = set(plan.tasks.values_list("dish_component_id", flat=True))
+    existing_dc_ids = set(
+        plan.tasks.filter(dish_component__isnull=False).values_list("dish_component_id", flat=True)
+    )
 
     stale_dc_ids = existing_dc_ids - target_dc_ids
     if stale_dc_ids:
@@ -74,13 +84,40 @@ def build_placeholders_hard_reset(plan: PrepPlan) -> None:
     new_dc_ids = target_dc_ids - existing_dc_ids
     if new_dc_ids:
         PrepTask.objects.bulk_create(
-            PrepTask(plan=plan, dish_component_id=dc_id, status=PrepTask.TaskStatus.NONE)
+            PrepTask(plan=plan, dish_component_id=dc_id, status=PrepTask.TaskStatus.PLANNED)
             for dc_id in new_dc_ids
+        )
+
+    target_component_ids = set(
+        Component.objects.filter(
+            team=plan.team, standalone_active=True, dish_components__isnull=True
+        ).values_list("id", flat=True)
+    )
+    existing_component_ids = set(
+        plan.tasks.filter(component__isnull=False).values_list("component_id", flat=True)
+    )
+
+    stale_component_ids = existing_component_ids - target_component_ids
+    if stale_component_ids:
+        plan.tasks.filter(component_id__in=stale_component_ids).delete()
+
+    new_component_ids = target_component_ids - existing_component_ids
+    if new_component_ids:
+        PrepTask.objects.bulk_create(
+            PrepTask(plan=plan, component_id=c_id, status=PrepTask.TaskStatus.PLANNED)
+            for c_id in new_component_ids
         )
 
 def finalize_plan(plan: PrepPlan, user) -> None:
     if plan.state != PrepPlan.PlanState.DRAFT:
         return
+    # The Builder's checkbox is the "do I need this today?" decision: NONE
+    # tasks were left unchecked (already have it, not needed) and never
+    # make it to the kitchen. PLANNED survivors reset to NONE so
+    # PRODUCTION's own claim/progress tracking (NONE -> PLANNED -> DONE)
+    # starts clean instead of jumping straight to DONE on the first tap.
+    plan.tasks.filter(status=PrepTask.TaskStatus.NONE).delete()
+    plan.tasks.update(status=PrepTask.TaskStatus.NONE)
     plan.state = PrepPlan.PlanState.PRODUCTION
     plan.finalized_by = user
     plan.finalized_at = timezone.now()
@@ -186,3 +223,29 @@ def set_task_note(task_id: int, note: str, user) -> PrepTask:
     task.daily_note = note
     task.save(update_fields=["daily_note"])
     return task
+
+def add_manual_task(plan: PrepPlan, label: str, user) -> PrepTask:
+    _assert_team_member(user, plan.team)
+    if plan.state != PrepPlan.PlanState.DRAFT:
+        raise ValueError("Cannot add tasks in PRODUCTION.")
+    label = label.strip()
+    if not label:
+        raise ValueError("Label is required.")
+    return PrepTask.objects.create(plan=plan, manual_label=label, status=PrepTask.TaskStatus.PLANNED)
+
+def add_recipe_task(plan: PrepPlan, recipe, user) -> PrepTask:
+    _assert_team_member(user, plan.team)
+    if plan.state != PrepPlan.PlanState.DRAFT:
+        raise ValueError("Cannot add tasks in PRODUCTION.")
+    if recipe.team_id != plan.team_id:
+        raise PermissionError("Recipe belongs to a different team.")
+    return PrepTask.objects.create(plan=plan, recipe=recipe, status=PrepTask.TaskStatus.PLANNED)
+
+def remove_adhoc_task(task_id: int, user) -> None:
+    task = PrepTask.objects.select_related("plan").get(id=task_id)
+    _assert_team_member(user, task.plan.team)
+    if task.plan.state != PrepPlan.PlanState.DRAFT:
+        raise ValueError("Cannot remove tasks in PRODUCTION.")
+    if task.dish_component_id or task.component_id:
+        raise ValueError("Only ad hoc (manual/recipe) tasks can be removed directly.")
+    task.delete()

@@ -9,6 +9,40 @@
     <a class="btn btn-outline-secondary" href="{% url 'menu:dish_detail' dish.pk %}">Back to Dish</a>
   </div>
 
+  <div class="card card-body mt-3">
+    <h6 class="mb-1">Add a prep item</h6>
+    <p class="text-muted mb-3">Create it here, inline — no need to visit the Prep Items catalog first. A name, or pick a recipe.</p>
+    <form method="post" action="{% url 'menu:component_quick_create' dish.pk %}">
+      {% csrf_token %}
+      {{ quick_formset.management_form }}
+      <div id="quick-component-rows">
+        {% for form in quick_formset %}
+          <div class="row g-2 mb-2 align-items-center quick-component-row">
+            <div class="col-12 col-sm-5">{{ form.label }}</div>
+            <div class="col-auto text-muted small">or</div>
+            <div class="col-12 col-sm-5">{{ form.recipe }}</div>
+          </div>
+        {% endfor %}
+      </div>
+      <template id="quick-component-row-template">
+        <div class="row g-2 mb-2 align-items-center quick-component-row">
+          <div class="col-12 col-sm-5">{{ quick_formset.empty_form.label }}</div>
+          <div class="col-auto text-muted small">or</div>
+          <div class="col-12 col-sm-5">{{ quick_formset.empty_form.recipe }}</div>
+        </div>
+      </template>
+      <div class="d-flex gap-2 mt-2">
+        <button type="button" class="btn btn-sm btn-outline-success"
+                data-formset-add="quick-component-rows"
+                data-formset-template="quick-component-row-template"
+                data-formset-prefix="{{ quick_formset.prefix }}">
+          + Add another row
+        </button>
+        <button class="btn btn-sm btn-primary" type="submit">Add Prep Items</button>
+      </div>
+    </form>
+  </div>
+
   <form method="post" class="card card-body mt-3">
     {% csrf_token %}
     {{ formset.management_form }}

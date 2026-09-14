@@ -33,17 +33,10 @@ class Recipe(models.Model):
 
 
 class Component(models.Model):
-    class ComponentType(models.TextChoices):
-        RECIPE = "RECIPE", "Recipe"
-        SIMPLE_PREP = "SIMPLE_PREP", "Simple prep"
-        PROCESS_STATE = "PROCESS_STATE", "Process/state"
-        CHECK = "CHECK", "Check"
-
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="components")
     name = models.CharField(max_length=200)
-    type = models.CharField(max_length=20, choices=ComponentType.choices)
-    spec_text = models.TextField(blank=True)
     recipe = models.ForeignKey(Recipe, null=True, blank=True, on_delete=models.SET_NULL, related_name="components")
+    standalone_active = models.BooleanField(default=False)
 
     class Meta:
         constraints = [

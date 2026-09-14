@@ -58,3 +58,24 @@ document.addEventListener(
       }
     });
   });
+
+  // Dynamic formset "+" button: clones a hidden <template> row (Django's
+  // {{ formset.empty_form }}, using its __prefix__ placeholder) and bumps
+  // TOTAL_FORMS. Works for any formset via data-formset-* attributes.
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-formset-add]");
+    if (!btn) return;
+
+    const container = document.getElementById(btn.getAttribute("data-formset-add"));
+    const template = document.getElementById(btn.getAttribute("data-formset-template"));
+    const prefix = btn.getAttribute("data-formset-prefix");
+    const totalForms = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+    if (!container || !template || !totalForms) return;
+
+    const formIndex = parseInt(totalForms.value, 10);
+    const html = template.innerHTML.replace(/__prefix__/g, formIndex);
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = html.trim();
+    container.appendChild(wrapper.firstElementChild);
+    totalForms.value = formIndex + 1;
+  });

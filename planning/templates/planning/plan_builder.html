@@ -6,18 +6,7 @@
       <h2>Build Prep List</h2>
       <div class="text-muted">{{ plan.service_date }} — {{ plan.state }}</div>
     </div>
-    <a class="btn btn-outline-secondary prep-header-action" href="{% url 'planning:plan_sheet' plan.service_date %}">Back to Prep Sheet</a>
   </div>
-
-  {% if plan.state == "PRODUCTION" %}
-    <div class="alert alert-warning mt-3">
-      This prep list is finalized. Reopen it for editing if it was made by mistake and needs changes or deletion.
-    </div>
-  {% elif plan.state == "COMPLETE" %}
-    <div class="alert alert-secondary mt-3">
-      This prep list is complete and locked. Reopen it if it needs changes.
-    </div>
-  {% endif %}
 
   <form id="builder-form" method="post" class="card prep-card card-body mt-3">
     {% csrf_token %}
@@ -33,75 +22,94 @@
       </div>
     </div>
 
-    <div class="prep-primary-actions mt-4">
-      {% if plan.state == "DRAFT" %}
-        <button class="btn btn-primary" type="submit" onclick="document.getElementById('builder-action').value='save'">
-          Save Draft
-        </button>
-
-        <button class="btn btn-success" type="button"
-                data-bs-toggle="modal" data-bs-target="#confirmModal"
-                data-confirm-title="Finalize prep list"
-                data-confirm-body="This finalizes the prep list. Cooks can claim tasks and mark them done."
-                data-confirm-submit="Finalize Prep List"
-                data-confirm-form="builder-form"
-                data-confirm-action="finalize">
-          Finalize Prep List
-        </button>
-
-      {% elif plan.state == "PRODUCTION" %}
-        <button class="btn btn-warning" type="button"
-                data-bs-toggle="modal" data-bs-target="#confirmModal"
-                data-confirm-title="Reopen for editing"
-                data-confirm-body="This will move the prep list back to DRAFT so you can edit or erase it."
-                data-confirm-submit="Reopen"
-                data-confirm-form="builder-form"
-                data-confirm-action="reopen">
-          Reopen for Editing
-        </button>
-      {% else %}
-        <button class="btn btn-warning" type="button"
-                data-bs-toggle="modal" data-bs-target="#confirmModal"
-                data-confirm-title="Reopen prep list"
-                data-confirm-body="This will move the prep list back to PRODUCTION so cooks can claim tasks and mark them done again."
-                data-confirm-submit="Reopen"
-                data-confirm-form="builder-form"
-                data-confirm-action="reopen">
-          Reopen Prep List
-        </button>
-      {% endif %}
-    </div>
-
-    {% if plan.state == "DRAFT" %}
-      <div class="secondary-action-panel mt-4">
-        <div>
-          <h6 class="mb-1">Need to refresh the generated tasks?</h6>
-          <p class="text-muted mb-0">Rebuilding syncs tasks to the current dish selection. Tasks for dishes/components no longer selected are removed; other task statuses, assignees, and notes are kept.</p>
+    {% if form.standalone_components.field.queryset.exists %}
+      <h5 class="mt-4">Recurring prep items</h5>
+      <p class="text-muted">
+        These run on every prep list automatically.
+        {% if active_membership.can_edit_menu %}Uncheck one to stop it from recurring — that affects every future prep list, not just this one.{% endif %}
+      </p>
+      <div class="row">
+        <div class="col-12 col-md-8">
+          {% if active_membership.can_edit_menu %}
+            {{ form.standalone_components }}
+          {% else %}
+            <ul class="list-unstyled mb-0">
+              {% for c in form.standalone_components.field.queryset %}
+                <li>{{ c.name }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
         </div>
-        <button class="btn btn-outline-warning" type="button"
-                data-bs-toggle="modal" data-bs-target="#confirmModal"
-                data-confirm-title="Rebuild prep list"
-                data-confirm-body="This syncs the prep list to the selected dishes. Tasks for dishes/components no longer selected will be erased; other task statuses, assignees, and notes are kept."
-                data-confirm-submit="Rebuild"
-                data-confirm-form="builder-form"
-                data-confirm-action="refresh">
-          Rebuild Prep List
-        </button>
-      </div>
-
-      <div class="danger-zone mt-4">
-        <p class="small text-muted mb-2">Administrative action</p>
-        <button class="btn btn-outline-danger" type="button"
-                data-bs-toggle="modal" data-bs-target="#confirmModal"
-                data-confirm-title="Erase prep list"
-                data-confirm-body="This will permanently delete the prep list."
-                data-confirm-submit="Erase"
-                data-confirm-form="builder-form"
-                data-confirm-action="erase">
-          Erase Prep List
-        </button>
       </div>
     {% endif %}
+
+    <div class="prep-primary-actions mt-4">
+      <button class="btn btn-primary" type="submit" onclick="document.getElementById('builder-action').value='save'">
+        Save Draft
+      </button>
+
+      <button class="btn btn-success" type="button"
+              data-bs-toggle="modal" data-bs-target="#confirmModal"
+              data-confirm-title="Send to kitchen"
+              data-confirm-body="This sends the prep list to the kitchen. Cooks can claim tasks and mark them done."
+              data-confirm-submit="Send to Kitchen"
+              data-confirm-form="builder-form"
+              data-confirm-action="finalize">
+        Send to Kitchen
+      </button>
+    </div>
+
+    <div class="danger-zone mt-4">
+      <p class="small text-muted mb-2">Administrative action</p>
+      <button class="btn btn-outline-danger" type="button"
+              data-bs-toggle="modal" data-bs-target="#confirmModal"
+              data-confirm-title="Erase prep list"
+              data-confirm-body="This will permanently delete the prep list."
+              data-confirm-submit="Erase"
+              data-confirm-form="builder-form"
+              data-confirm-action="erase">
+        Erase Prep List
+      </button>
+    </div>
   </form>
+
+  <div class="mt-4">
+    {% include "planning/partials/task_groups.html" with groups=groups extra_tasks=extra_tasks %}
+  </div>
+
+  <div class="card prep-card card-body mt-3">
+    <h5>Add a one-off prep task</h5>
+    <p class="text-muted">Circumstantial work not tied to any dish — a manual label or a recipe. These aren't saved to the menu and never survive a rebuild.</p>
+
+    <form method="post" action="{% url 'planning:task_add_adhoc' plan.service_date %}">
+      {% csrf_token %}
+      {{ adhoc_formset.management_form }}
+      <div id="builder-adhoc-rows">
+        {% for aform in adhoc_formset %}
+          <div class="row g-2 mb-2 align-items-center">
+            <div class="col-12 col-sm-5">{{ aform.label }}</div>
+            <div class="col-auto text-muted small">or</div>
+            <div class="col-12 col-sm-5">{{ aform.recipe }}</div>
+          </div>
+        {% endfor %}
+      </div>
+      <template id="builder-adhoc-row-template">
+        <div class="row g-2 mb-2 align-items-center">
+          <div class="col-12 col-sm-5">{{ adhoc_formset.empty_form.label }}</div>
+          <div class="col-auto text-muted small">or</div>
+          <div class="col-12 col-sm-5">{{ adhoc_formset.empty_form.recipe }}</div>
+        </div>
+      </template>
+      <div class="d-flex gap-2 mt-2">
+        <button type="button" class="btn btn-sm btn-outline-success"
+                data-formset-add="builder-adhoc-rows"
+                data-formset-template="builder-adhoc-row-template"
+                data-formset-prefix="{{ adhoc_formset.prefix }}">
+          + Add another row
+        </button>
+        <button class="btn btn-sm btn-primary" type="submit">Add</button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}

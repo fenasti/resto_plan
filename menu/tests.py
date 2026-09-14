@@ -57,10 +57,10 @@ class DuplicateNameFormValidationTests(TestCase):
         self.assertContains(response, "already exists")
 
     def test_component_create_duplicate_name_shows_error_instead_of_crashing(self):
-        Component.objects.create(team=self.team, name="Broth", type=Component.ComponentType.SIMPLE_PREP)
+        Component.objects.create(team=self.team, name="Broth")
         response = self.client.post(
             reverse("menu:component_create"),
-            {"name": "Broth", "type": Component.ComponentType.SIMPLE_PREP, "spec_text": ""},
+            {"name": "Broth"},
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "already exists")
@@ -177,8 +177,8 @@ class EditDishComponentsPreservesTaskStateTests(TestCase):
         )
 
         self.dish = Dish.objects.create(team=self.team, name="Ramen")
-        self.component_a = Component.objects.create(team=self.team, name="Broth", type=Component.ComponentType.SIMPLE_PREP)
-        self.component_b = Component.objects.create(team=self.team, name="Noodles", type=Component.ComponentType.SIMPLE_PREP)
+        self.component_a = Component.objects.create(team=self.team, name="Broth")
+        self.component_b = Component.objects.create(team=self.team, name="Noodles")
         self.dc_a = DishComponent.objects.create(dish=self.dish, component=self.component_a, order=1)
         self.dc_b = DishComponent.objects.create(dish=self.dish, component=self.component_b, order=2)
 
@@ -239,7 +239,7 @@ class ComponentDeleteViewTests(TestCase):
         )
 
         self.dish = Dish.objects.create(team=self.team, name="Ramen")
-        self.component = Component.objects.create(team=self.team, name="Broth", type=Component.ComponentType.SIMPLE_PREP)
+        self.component = Component.objects.create(team=self.team, name="Broth")
         self.dish_component = DishComponent.objects.create(dish=self.dish, component=self.component, order=1)
 
         self.client.force_login(self.user)
@@ -259,7 +259,7 @@ class ComponentDeleteViewTests(TestCase):
         self.assertTrue(Component.objects.filter(pk=self.component.pk).exists())
 
     def test_deletes_component_and_clears_only_its_draft_tasks(self):
-        other_component = Component.objects.create(team=self.team, name="Noodles", type=Component.ComponentType.SIMPLE_PREP)
+        other_component = Component.objects.create(team=self.team, name="Noodles")
         DishComponent.objects.create(dish=self.dish, component=other_component, order=2)
 
         plan = planning_services.get_or_create_draft_plan(self.team, datetime.date(2026, 1, 2), self.user)
@@ -278,3 +278,132 @@ class ComponentDeleteViewTests(TestCase):
         other_task.refresh_from_db()
         self.assertEqual(other_task.status, PrepTask.TaskStatus.DONE)
         self.assertEqual(other_task.daily_note, "ok")
+
+
+class ComponentQuickCreateTests(TestCase):
+    """
+    Creating a prep item inline from Edit Prep Items (instead of the generic
+    catalog) — one row per manual label or recipe pick, multiple in one
+    submit, with dedup on the recipe path.
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000030", created_by=self.owner)
+        TeamMembership.objects.create(user=self.owner, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.member = User.objects.create_user(username="member", password="x")
+        TeamMembership.objects.create(user=self.member, team=self.team, role=TeamMembership.Role.MEMBER)
+
+        self.dish = Dish.objects.create(team=self.team, name="Ramen")
+        self.recipe = Recipe.objects.create(team=self.team, name="Base Broth", ingredients_text="water")
+
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def _formset_payload(self, rows):
+        data = {
+            "form-TOTAL_FORMS": str(len(rows)),
+            "form-INITIAL_FORMS": "0",
+            "form-MIN_NUM_FORMS": "0",
+            "form-MAX_NUM_FORMS": "1000",
+        }
+        for i, row in enumerate(rows):
+            data[f"form-{i}-label"] = row.get("label", "")
+            data[f"form-{i}-recipe"] = row.get("recipe", "")
+        return data
+
+    def test_creates_manual_and_recipe_components_in_one_submit(self):
+        payload = self._formset_payload([
+            {"label": "Chop chives"},
+            {"recipe": self.recipe.id},
+        ])
+        response = self.client.post(
+            reverse("menu:component_quick_create", args=[self.dish.pk]), payload
+        )
+        self.assertRedirects(response, reverse("menu:dish_detail", args=[self.dish.pk]))
+        self.assertTrue(Component.objects.filter(team=self.team, name="Chop chives").exists())
+        broth = Component.objects.get(team=self.team, name="Base Broth")
+        self.assertEqual(broth.recipe_id, self.recipe.id)
+        self.assertEqual(DishComponent.objects.filter(dish=self.dish).count(), 2)
+
+    def test_picking_the_same_recipe_twice_does_not_duplicate_the_component(self):
+        other_dish = Dish.objects.create(team=self.team, name="Pho")
+        self.client.post(
+            reverse("menu:component_quick_create", args=[self.dish.pk]),
+            self._formset_payload([{"recipe": self.recipe.id}]),
+        )
+        self.client.post(
+            reverse("menu:component_quick_create", args=[other_dish.pk]),
+            self._formset_payload([{"recipe": self.recipe.id}]),
+        )
+        self.assertEqual(Component.objects.filter(team=self.team, recipe=self.recipe).count(), 1)
+        self.assertEqual(DishComponent.objects.filter(component__recipe=self.recipe).count(), 2)
+
+    def test_row_with_both_label_and_recipe_rejects_the_whole_batch(self):
+        payload = self._formset_payload([{"label": "Chop chives", "recipe": self.recipe.id}])
+        response = self.client.post(
+            reverse("menu:component_quick_create", args=[self.dish.pk]), payload
+        )
+        self.assertRedirects(response, reverse("menu:dish_components_edit", args=[self.dish.pk]))
+        self.assertFalse(Component.objects.filter(team=self.team, name="Chop chives").exists())
+
+    def test_member_restricted_from_menu_cannot_quick_create(self):
+        # can_manage_menu defaults to True (horizontal by default); this
+        # simulates an owner having restricted this specific person.
+        membership = TeamMembership.objects.get(user=self.member, team=self.team)
+        membership.can_manage_menu = False
+        membership.save()
+
+        self.client.force_login(self.member)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+        payload = self._formset_payload([{"label": "Chop chives"}])
+        response = self.client.post(
+            reverse("menu:component_quick_create", args=[self.dish.pk]), payload
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Component.objects.filter(team=self.team, name="Chop chives").exists())
+
+
+class ToggleStandaloneActiveTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000031", created_by=self.owner)
+        TeamMembership.objects.create(user=self.owner, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.member = User.objects.create_user(username="member", password="x")
+        TeamMembership.objects.create(user=self.member, team=self.team, role=TeamMembership.Role.MEMBER)
+
+        self.component = Component.objects.create(team=self.team, name="Deep Clean")
+
+    def test_owner_can_toggle(self):
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+        response = self.client.post(reverse("menu:component_toggle_standalone", args=[self.component.pk]))
+        self.assertRedirects(response, reverse("menu:component_list"))
+        self.component.refresh_from_db()
+        self.assertTrue(self.component.standalone_active)
+
+    def test_member_restricted_from_menu_cannot_toggle(self):
+        # can_manage_menu defaults to True; simulate an owner restriction.
+        membership = TeamMembership.objects.get(user=self.member, team=self.team)
+        membership.can_manage_menu = False
+        membership.save()
+
+        self.client.force_login(self.member)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+        response = self.client.post(reverse("menu:component_toggle_standalone", args=[self.component.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.component.refresh_from_db()
+        self.assertFalse(self.component.standalone_active)

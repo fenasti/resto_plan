@@ -1,0 +1,25 @@
+{% for group in groups %}
+  <div class="prep-task-group">
+    <h4 class="prep-task-title">{{ group.dish.name }}</h4>
+    <div class="list-group">
+      {% for task in group.tasks %}
+        {% include "planning/partials/task_row.html" with task=task %}
+      {% empty %}
+        <div class="list-group-item text-muted">No prep items assigned to this dish yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+{% empty %}
+  <p>No tasks.</p>
+{% endfor %}
+
+{% if extra_tasks %}
+  <div class="prep-task-group">
+    <h4 class="prep-task-title">Extra</h4>
+    <div class="list-group">
+      {% for task in extra_tasks %}
+        {% include "planning/partials/task_row.html" with task=task %}
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}

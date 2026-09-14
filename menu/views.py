@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import ProtectedError
+from django.db.models import Max, ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
@@ -12,7 +12,7 @@ from accounts.mixins import SearchablePaginatedListMixin, TeamMemberRequiredMixi
 from planning import services as planning_services
 from planning.models import PlanDish, PrepPlan, PrepTask
 from .models import Dish, Component, Recipe, DishComponent
-from .forms import DishForm, ComponentForm, RecipeForm, DishComponentFormSet
+from .forms import DishForm, ComponentForm, RecipeForm, DishComponentFormSet, QuickComponentFormSet
 
 
 # ===== Team-member visible =====
@@ -295,6 +295,70 @@ def toggle_dish_active(request, pk: int):
 
 @login_required
 @team_permission_required("can_manage_menu")
+def toggle_standalone_active(request, pk: int):
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    component = get_object_or_404(Component, pk=pk, team=request.team)
+    component.standalone_active = not component.standalone_active
+    component.save(update_fields=["standalone_active"])
+    status = "recurring" if component.standalone_active else "off"
+    messages.success(request, f"'{component.name}' marked {status}.")
+    return redirect("menu:component_list")
+
+
+@login_required
+@team_permission_required("can_manage_menu")
+def component_quick_create(request, dish_pk: int):
+    """Creates one or more Components (+ DishComponent links) inline from
+    Edit Prep Items, instead of requiring a trip to the generic catalog."""
+    if request.method != "POST":
+        return HttpResponse(status=405)
+
+    dish = get_object_or_404(Dish, pk=dish_pk, team=request.team)
+    formset = QuickComponentFormSet(request.POST, form_kwargs={"team": request.team})
+    if not formset.is_valid():
+        errors = "; ".join(
+            error for form in formset.forms for error in form.errors.get("__all__", [])
+        )
+        messages.error(request, errors or "Could not add prep items.")
+        return redirect("menu:dish_components_edit", pk=dish.pk)
+
+    next_order = dish.dish_components.aggregate(Max("order"))["order__max"] or 0
+    created_names = []
+
+    with transaction.atomic():
+        for form in formset.forms:
+            if form.is_empty():
+                continue
+            recipe = form.cleaned_data.get("recipe")
+            if recipe:
+                component, _ = Component.objects.get_or_create(
+                    team=request.team, name=recipe.name, defaults={"recipe": recipe}
+                )
+            else:
+                label = form.cleaned_data["label"].strip()
+                component, _ = Component.objects.get_or_create(team=request.team, name=label)
+
+            next_order += 1
+            DishComponent.objects.get_or_create(
+                dish=dish, component=component, defaults={"order": next_order}
+            )
+            created_names.append(component.name)
+
+    if not created_names:
+        messages.info(request, "No prep items entered.")
+        return redirect("menu:dish_components_edit", pk=dish.pk)
+
+    refreshed_count = _refresh_draft_plans_for_dish(dish)
+    message = f"Added {', '.join(created_names)} to '{dish.name}'."
+    if refreshed_count:
+        message += f" Updated {refreshed_count} draft prep sheet(s)."
+    messages.success(request, message)
+    return redirect("menu:dish_detail", pk=dish.pk)
+
+
+@login_required
+@team_permission_required("can_manage_menu")
 def edit_dish_components(request, pk: int):
     dish = get_object_or_404(Dish, pk=pk, team=request.team)
     formset = DishComponentFormSet(request.POST or None, instance=dish)
@@ -313,7 +377,12 @@ def edit_dish_components(request, pk: int):
         messages.success(request, message)
         return redirect("menu:dish_detail", pk=dish.pk)
 
-    return render(request, "menu/dish_components_edit.html", {"dish": dish, "formset": formset})
+    quick_form = QuickComponentFormSet(form_kwargs={"team": request.team})
+    return render(
+        request,
+        "menu/dish_components_edit.html",
+        {"dish": dish, "formset": formset, "quick_formset": quick_form},
+    )
 
 
 @login_required

@@ -20,10 +20,12 @@ urlpatterns = [
     path("dishes/<int:pk>/delete/", views.DishDeleteView.as_view(), name="dish_delete"),
     path("dishes/<int:pk>/toggle-active/", views.toggle_dish_active, name="dish_toggle_active"),
     path("dishes/<int:pk>/components/edit/", views.edit_dish_components, name="dish_components_edit"),
+    path("dishes/<int:dish_pk>/components/quick-create/", views.component_quick_create, name="component_quick_create"),
     path("dish-components/<int:pk>/remove/", views.remove_dish_component, name="dish_component_remove"),
 
     path("components/", views.ComponentListView.as_view(), name="component_list"),
     path("components/create/", views.ComponentCreateView.as_view(), name="component_create"),
     path("components/<int:pk>/edit/", views.ComponentUpdateView.as_view(), name="component_edit"),
     path("components/<int:pk>/delete/", views.ComponentDeleteView.as_view(), name="component_delete"),
+    path("components/<int:pk>/toggle-standalone/", views.toggle_standalone_active, name="component_toggle_standalone"),
 ]

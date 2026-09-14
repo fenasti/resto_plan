@@ -54,8 +54,13 @@ class TeamMembership(models.Model):
 
     @property
     def is_team_admin(self) -> bool:
-        """High rank within this team: manage members, rotate join code, delete menu items."""
+        """High rank within this team: manage members, roles, and the join code."""
         return self.can_manage_team or self.role != self.Role.MEMBER
+
+    @property
+    def can_edit_menu(self) -> bool:
+        """The can_manage_menu flag, or being OWNER/ADMIN (same fallback as can_manage_team)."""
+        return self.can_manage_menu or self.role != self.Role.MEMBER
 
     def __str__(self):
         return f"{self.user} in {self.team} ({self.role})"

@@ -4,7 +4,7 @@
   <div class="d-flex justify-content-between align-items-center">
     <div>
       <h2>Prep Items</h2>
-      <p class="text-muted mb-0">Reusable kitchen work: simple prep, checks, process states, or prep tied to a recipe.</p>
+      <p class="text-muted mb-0">Recurring kitchen work not tied to a specific dish. Most prep items are created inline from a dish's "Edit Prep Items" screen instead.</p>
     </div>
     <a class="btn btn-primary" href="{% url 'menu:component_create' %}">Create Prep Item</a>
   </div>
@@ -16,7 +16,11 @@
         <div class="card-body d-flex justify-content-between align-items-center">
           <div>
             <strong>{{ c.name }}</strong>
-            <span class="badge text-bg-light ms-2">{{ c.type }}</span>
+            {% if c.standalone_active %}
+              <span class="badge text-bg-success ms-2">Recurring</span>
+            {% else %}
+              <span class="badge text-bg-secondary ms-2">Off</span>
+            {% endif %}
             {% if c.recipe_id %}
               <a class="ms-2 text-decoration-none" href="{% url 'menu:recipe_detail' c.recipe_id %}">
                 <i class="bi bi-journal-text"></i>
@@ -24,6 +28,10 @@
             {% endif %}
           </div>
           <div class="d-flex gap-2">
+            <form method="post" action="{% url 'menu:component_toggle_standalone' c.pk %}">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-secondary" type="submit">Toggle</button>
+            </form>
             <a class="btn btn-sm btn-outline-primary" href="{% url 'menu:component_edit' c.pk %}">Edit</a>
             <button class="btn btn-sm btn-outline-danger" type="button"
                     data-bs-toggle="modal" data-bs-target="#confirmModal"

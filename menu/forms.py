@@ -1,5 +1,5 @@
 from django import forms
-from django.forms import inlineformset_factory
+from django.forms import formset_factory, inlineformset_factory
 from .models import Dish, Component, Recipe, DishComponent
 
 class DishForm(forms.ModelForm):
@@ -55,15 +55,15 @@ class ComponentForm(forms.ModelForm):
         self.team = team
         if team is not None:
             self.fields["recipe"].queryset = Recipe.objects.filter(team=team).order_by("name")
+        self.fields["recipe"].required = False
 
     class Meta:
         model = Component
-        fields = ["name", "type", "spec_text", "recipe"]
+        fields = ["name", "recipe", "standalone_active"]
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "type": forms.Select(attrs={"class": "form-select"}),
-            "spec_text": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
             "recipe": forms.Select(attrs={"class": "form-select"}),
+            "standalone_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def clean_name(self):
@@ -75,6 +75,40 @@ class ComponentForm(forms.ModelForm):
             if qs.exists():
                 raise forms.ValidationError("A prep item with this name already exists.")
         return name
+
+class QuickComponentForm(forms.Form):
+    """One row of the manual-or-recipe quick-add widget on Edit Prep Items."""
+
+    label = forms.CharField(
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. Chop chives"}),
+    )
+    recipe = forms.ModelChoiceField(
+        queryset=Recipe.objects.none(),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    def __init__(self, *args, team=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if team is not None:
+            self.fields["recipe"].queryset = Recipe.objects.filter(team=team).order_by("name")
+
+    def clean(self):
+        cleaned = super().clean()
+        label = (cleaned.get("label") or "").strip()
+        if label and cleaned.get("recipe"):
+            raise forms.ValidationError("Enter a name OR pick a recipe, not both.")
+        return cleaned
+
+    def is_empty(self) -> bool:
+        data = getattr(self, "cleaned_data", {}) or {}
+        return not (data.get("label") or "").strip() and not data.get("recipe")
+
+
+QuickComponentFormSet = formset_factory(QuickComponentForm, extra=1, can_delete=False)
+
 
 DishComponentFormSet = inlineformset_factory(
     parent_model=Dish,

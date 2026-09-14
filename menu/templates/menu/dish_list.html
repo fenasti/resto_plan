@@ -8,7 +8,6 @@
     </div>
     {% if active_membership and active_membership.can_manage_menu %}
       <a class="btn btn-primary" href="{% url 'menu:dish_create' %}">Create Dish</a>
-      <a class="btn btn-outline-secondary" href="{% url 'menu:component_list' %}">Prep Items</a>
     {% endif %}
   </div>
 

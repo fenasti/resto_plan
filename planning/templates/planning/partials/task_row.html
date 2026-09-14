@@ -1,4 +1,4 @@
-{% with comp=task.dish_component.component plan=task.plan %}
+{% with plan=task.plan %}
 <div id="task-{{ task.id }}" class="list-group-item p-0 {% if task.assignee and task.status != 'DONE' %}list-group-item-success{% endif %}">
 
   <div class="px-3 py-2 task-main {% if plan.state == 'COMPLETE' %}task-main-locked{% endif %}"
@@ -12,21 +12,21 @@
        {% endif %}>
 
     <div class="task-main-left">
-      <span>{% if task.status == "DONE" %}✅{% else %}☐{% endif %}</span>
+      {% if plan.state == "DRAFT" %}
+        <span>{% if task.status == "PLANNED" %}☑{% else %}☐{% endif %}</span>
+      {% else %}
+        <span>{% if task.status == "DONE" %}✅{% else %}☐{% endif %}</span>
+      {% endif %}
 
-      {% if comp.recipe_id %}
-        <a href="{% url 'menu:recipe_detail' comp.recipe_id %}" class="task-control text-decoration-none" title="Recipe">
+      {% if task.linked_recipe_id %}
+        <a href="{% url 'menu:recipe_detail' task.linked_recipe_id %}" class="task-control text-decoration-none" title="Recipe">
           <i class="bi bi-journal-text"></i>
         </a>
       {% endif %}
 
       <span class="task-name {% if task.status == 'DONE' %}text-decoration-line-through{% endif %}">
-        {{ comp.name }}
+        {{ task.display_name }}
       </span>
-
-      {% if comp.spec_text %}
-        <small class="text-muted ms-2">{{ comp.spec_text }}</small>
-      {% endif %}
     </div>
 
     <div class="task-main-right">
@@ -49,9 +49,17 @@
           {% if task.assignee %}Unclaim{% else %}Claim{% endif %}
         </button>
       {% endif %}
+
+      {% if plan.state == "DRAFT" and not task.dish_component_id and not task.component_id %}
+        <form method="post" action="{% url 'planning:task_remove_adhoc' task.id %}" class="task-control">
+          {% csrf_token %}
+          <button class="btn btn-sm btn-outline-danger" type="submit">Remove</button>
+        </form>
+      {% endif %}
     </div>
   </div>
 
+  {% if plan.state != "DRAFT" %}
   <div class="px-3 pb-2 task-control">
     {% if note_edit and plan.state != "COMPLETE" %}
       <form method="post"
@@ -82,5 +90,6 @@
       </div>
     {% endif %}
   </div>
+  {% endif %}
 </div>
 {% endwith %}
