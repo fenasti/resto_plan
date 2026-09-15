@@ -917,13 +917,19 @@ class MobileTouchUsabilityTests(TestCase):
         self.assertNotIn("Erase Prep List", sticky_html)
         self.assertIn("Erase Prep List", content)
 
-    def test_task_row_isolates_the_control_zone_from_the_row_tap(self):
-        # The bug: task-main-right (Claim/Unclaim, Remove, assignee badge)
-        # sat inside the row's tap-to-toggle area without being excluded as
-        # a whole, so a tap that missed the button but landed in its
-        # surrounding space still fired the row's own NONE<->DONE toggle.
+    def test_task_main_right_stays_part_of_the_row_tap_zone(self):
+        # Regression: an earlier attempt at this fix excluded the whole
+        # task-main-right band (Claim/Unclaim, Remove, assignee badge) from
+        # the row's tap-to-toggle, not just the button inside it. That
+        # turned most of the row into a dead zone on mobile — tapping
+        # anywhere near the button but not exactly on it did nothing, which
+        # read as "the toggle doesn't respond". task-main-right must NOT
+        # carry task-control itself; only the individual interactive
+        # control (the button/form) inside it should be excluded, so
+        # tapping the surrounding blank space still advances the task.
         resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
-        self.assertContains(resp, 'class="task-main-right task-control"')
+        self.assertNotContains(resp, 'class="task-main-right task-control"')
+        self.assertContains(resp, '<div class="task-main-right">')
 
     def test_task_groups_render_the_list_cards_view_toggle(self):
         resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))

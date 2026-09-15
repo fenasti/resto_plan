@@ -439,7 +439,10 @@
    scrolling back up past the task list. On desktop it settles back into
    normal flow, right-aligned like the old header actions. */
 .prep-shell-with-sticky-bar {
-  padding-bottom: 5.5rem;
+  /* Must clear the bar's own height, which grows on notched phones
+     (env(safe-area-inset-bottom) below) — otherwise the last row or two
+     of content sits underneath the fixed bar and silently eats taps. */
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 .prep-sticky-actions {
