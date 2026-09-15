@@ -27,7 +27,7 @@
               </a>
             {% endif %}
           </div>
-          <div class="d-flex gap-2">
+          <div class="d-flex gap-2 catalog-row-actions">
             <form method="post" action="{% url 'menu:component_toggle_standalone' c.pk %}">
               {% csrf_token %}
               <button class="btn btn-sm btn-outline-secondary" type="submit">Toggle</button>

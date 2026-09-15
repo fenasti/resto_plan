@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container py-4">
+  <a class="btn btn-outline-secondary btn-back mb-2"
+     href="{% if view.object %}{% url 'menu:recipe_detail' view.object.pk %}{% else %}{% url 'menu:recipe_list' %}{% endif %}">
+    <i class="bi bi-arrow-left"></i> {% if view.object %}{{ view.object.name }}{% else %}Recipes{% endif %}
+  </a>
+
   <h2>{% if view.object %}Edit Recipe{% else %}Create Recipe{% endif %}</h2>
   <form method="post" class="card card-body mt-3">
     {% csrf_token %}

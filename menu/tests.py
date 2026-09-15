@@ -407,3 +407,68 @@ class ToggleStandaloneActiveTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.component.refresh_from_db()
         self.assertFalse(self.component.standalone_active)
+
+
+class MenuMobileTouchUsabilityTests(TestCase):
+    """
+    Same mobile-usability pass applied to the prep list and order screens,
+    extended across Menu Setup: a back link off every sub-screen instead of
+    relying on the hamburger menu, and per-row catalog actions (Toggle/
+    Edit/Delete, the dish's prep-item Remove button) tagged so the shared
+    touch-target CSS bump in style.css applies to them.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000020", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.dish = Dish.objects.create(team=self.team, name="Ramen")
+        self.component = Component.objects.create(team=self.team, name="Broth")
+        DishComponent.objects.create(dish=self.dish, component=self.component, order=1)
+        self.recipe = Recipe.objects.create(team=self.team, name="Broth Recipe", ingredients_text="water")
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_dish_detail_has_a_back_link_to_dish_list(self):
+        resp = self.client.get(reverse("menu:dish_detail", args=[self.dish.pk]))
+        self.assertContains(resp, reverse("menu:dish_list"))
+        self.assertContains(resp, "btn-back")
+        self.assertContains(resp, "dish-component-row")
+
+    def test_recipe_detail_has_a_back_link_to_recipe_list(self):
+        resp = self.client.get(reverse("menu:recipe_detail", args=[self.recipe.pk]))
+        self.assertContains(resp, reverse("menu:recipe_list"))
+        self.assertContains(resp, "btn-back")
+
+    def test_dish_components_edit_back_link_goes_to_dish_detail(self):
+        resp = self.client.get(reverse("menu:dish_components_edit", args=[self.dish.pk]))
+        self.assertContains(resp, reverse("menu:dish_detail", args=[self.dish.pk]))
+        self.assertContains(resp, "btn-back")
+
+    def test_dish_create_form_back_link_goes_to_dish_list(self):
+        resp = self.client.get(reverse("menu:dish_create"))
+        self.assertContains(resp, reverse("menu:dish_list"))
+        self.assertContains(resp, "btn-back")
+
+    def test_dish_edit_form_back_link_goes_to_dish_detail(self):
+        resp = self.client.get(reverse("menu:dish_edit", args=[self.dish.pk]))
+        self.assertContains(resp, reverse("menu:dish_detail", args=[self.dish.pk]))
+
+    def test_recipe_edit_form_back_link_goes_to_recipe_detail(self):
+        resp = self.client.get(reverse("menu:recipe_edit", args=[self.recipe.pk]))
+        self.assertContains(resp, reverse("menu:recipe_detail", args=[self.recipe.pk]))
+
+    def test_component_form_back_link_goes_to_component_list(self):
+        resp = self.client.get(reverse("menu:component_create"))
+        self.assertContains(resp, reverse("menu:component_list"))
+        self.assertContains(resp, "btn-back")
+
+    def test_index_rows_tag_their_actions_for_the_touch_target_css(self):
+        for url_name in ["menu:dish_list", "menu:component_list", "menu:recipe_list"]:
+            resp = self.client.get(reverse(url_name))
+            self.assertContains(resp, "catalog-row-actions")
+        self.assertFalse(self.component.standalone_active)

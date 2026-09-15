@@ -602,3 +602,15 @@
 html {
   scroll-behavior: smooth;
 }
+
+/* Bigger touch targets for per-row catalog actions (Menu Setup, Prep
+   Items, Recipes index rows; the Remove button on a dish's prep item
+   list; the "+ Add another row" quick-add button) — same treatment as
+   the prep list screens, applied to the rest of the app. */
+@media (max-width: 991.98px) {
+  .catalog-row-actions .btn,
+  .dish-component-row .btn,
+  .quick-add-actions .btn {
+    min-height: 44px;
+  }
+}

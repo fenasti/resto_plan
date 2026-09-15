@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container py-4">
+  <a class="btn btn-outline-secondary btn-back mb-2" href="{% url 'menu:dish_detail' dish.pk %}">
+    <i class="bi bi-arrow-left"></i> {{ dish.name }}
+  </a>
+
   <div class="d-flex justify-content-between align-items-center">
     <div>
       <h2>Edit Prep Items: {{ dish.name }}</h2>
       <p class="text-muted mb-0">Add prep items or adjust order and notes. Remove prep items from the dish display page.</p>
     </div>
-    <a class="btn btn-outline-secondary" href="{% url 'menu:dish_detail' dish.pk %}">Back to Dish</a>
   </div>
 
   <div class="card card-body mt-3">
@@ -31,14 +34,14 @@
           <div class="col-12 col-sm-5">{{ quick_formset.empty_form.recipe }}</div>
         </div>
       </template>
-      <div class="d-flex gap-2 mt-2">
+      <div class="d-flex gap-2 mt-2 quick-add-actions">
         <button type="button" class="btn btn-sm btn-outline-success"
                 data-formset-add="quick-component-rows"
                 data-formset-template="quick-component-row-template"
                 data-formset-prefix="{{ quick_formset.prefix }}">
           + Add another row
         </button>
-        <button class="btn btn-sm btn-primary" type="submit">Add Prep Items</button>
+        <button class="btn btn-primary" type="submit">Add Prep Items</button>
       </div>
     </form>
   </div>

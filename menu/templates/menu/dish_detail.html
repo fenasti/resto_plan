@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container py-4">
+  <a class="btn btn-outline-secondary btn-back mb-2" href="{% url 'menu:dish_list' %}">
+    <i class="bi bi-arrow-left"></i> Dishes
+  </a>
+
   <div class="d-flex justify-content-between align-items-center">
     <h2>{{ dish.name }}</h2>
     {% if active_membership and active_membership.can_manage_menu %}
@@ -12,7 +16,7 @@
   <p class="text-muted">This dish is made from these reusable prep items. The recipe icon opens detailed instructions when linked.</p>
   <ul class="list-group">
     {% for dc in dish.dish_components.all %}
-      <li class="list-group-item d-flex justify-content-between align-items-center">
+      <li class="list-group-item d-flex justify-content-between align-items-center dish-component-row">
         <div>
           <div>
             {{ dc.order }}. {{ dc.component.name }}
