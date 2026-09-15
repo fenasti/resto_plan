@@ -1,22 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container prep-shell py-3 py-md-4">
+<div class="container prep-shell py-3 py-md-4 prep-shell-with-sticky-bar">
+  <a class="btn btn-outline-secondary btn-back mb-2" href="{% url 'ordering:order_list' %}">
+    <i class="bi bi-arrow-left"></i> Orders
+  </a>
+
   <div class="prep-header">
     <div>
       <h2>Order List</h2>
       <div class="text-muted">{{ order.order_date }} — {{ order.state }} · {{ order.item_count }} line{{ order.item_count|pluralize }}</div>
     </div>
     <div class="prep-actions">
-      <a class="btn btn-outline-secondary" href="{% url 'ordering:order_list' %}">Back to Orders</a>
       <a class="btn btn-outline-secondary" href="{% url 'ordering:order_export' order.order_date %}">Export Excel</a>
       <a class="btn btn-outline-secondary" href="{% url 'ordering:order_clone' order.order_date %}">Create from This</a>
-      {% if order.state == "FINALIZED" %}
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="reopen">
-          <button class="btn btn-warning" type="submit">Reopen for Editing</button>
-        </form>
-      {% endif %}
     </div>
   </div>
 
@@ -79,7 +75,7 @@
     </div>
   {% endif %}
 
-  <form method="post" class="card prep-card shadow-sm mt-4">
+  <form method="post" id="order-form" class="card prep-card shadow-sm mt-4">
     <div class="card-body">
       {% csrf_token %}
       {{ formset.management_form }}
@@ -90,12 +86,6 @@
           <h5 class="mb-1">Order Table</h5>
           <p class="text-muted mb-0">Keep the quantities flexible and practical so the exported sheet is easy to send to suppliers.</p>
         </div>
-        {% if order.state == "DRAFT" %}
-          <div class="prep-primary-actions">
-            <button class="btn btn-primary" type="submit" onclick="document.getElementById('order-form-action').value='save'">Save Draft</button>
-            <button class="btn btn-success" type="submit" onclick="document.getElementById('order-form-action').value='finalize'">Finalize Order</button>
-          </div>
-        {% endif %}
       </div>
 
       {% if groups %}
@@ -174,5 +164,26 @@
       {% endfor %}
     {% endfor %}
   {% endif %}
+</div>
+
+<div class="prep-sticky-actions">
+  <div class="prep-sticky-actions-inner">
+    {% if order.state == "DRAFT" %}
+      <button class="btn btn-primary" type="submit" form="order-form"
+              onclick="document.getElementById('order-form-action').value='save'">
+        Save Draft
+      </button>
+      <button class="btn btn-success" type="submit" form="order-form"
+              onclick="document.getElementById('order-form-action').value='finalize'">
+        Finalize Order
+      </button>
+    {% else %}
+      <form method="post" class="w-100">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reopen">
+        <button class="btn btn-warning w-100 h-100" type="submit">Reopen for Editing</button>
+      </form>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

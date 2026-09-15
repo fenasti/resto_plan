@@ -197,6 +197,16 @@
   width: 100%;
 }
 
+@media (max-width: 991.98px) {
+  .order-row-action .btn {
+    min-height: 44px;
+  }
+
+  .order-table .form-control {
+    min-height: 44px;
+  }
+}
+
 .team-code-badge {
   font-size: 1rem;
   padding: 0.6rem 0.85rem;
