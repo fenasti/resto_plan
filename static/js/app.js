@@ -59,6 +59,50 @@ document.addEventListener(
     });
   });
 
+  // List/Cards view toggle for the task groups on the Builder and Sheet.
+  // Preference is per-device (localStorage), defaulting to list.
+  (function () {
+    const STORAGE_KEY = "prepapp:taskView";
+
+    function applyView(view) {
+      document.querySelectorAll("[data-task-view-container]").forEach(function (el) {
+        if (view === "cards") {
+          el.setAttribute("data-view", "cards");
+        } else {
+          el.removeAttribute("data-view");
+        }
+      });
+      document.querySelectorAll("[data-view-btn]").forEach(function (btn) {
+        const pressed = btn.getAttribute("data-view-btn") === view;
+        btn.setAttribute("aria-pressed", pressed ? "true" : "false");
+        btn.classList.toggle("btn-secondary", pressed);
+        btn.classList.toggle("btn-outline-secondary", !pressed);
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+      let saved = "list";
+      try {
+        saved = localStorage.getItem(STORAGE_KEY) || "list";
+      } catch (e) {
+        // Private browsing / blocked storage: fall back to the default view.
+      }
+      applyView(saved);
+    });
+
+    document.addEventListener("click", function (e) {
+      const btn = e.target.closest("[data-view-btn]");
+      if (!btn) return;
+      const view = btn.getAttribute("data-view-btn");
+      applyView(view);
+      try {
+        localStorage.setItem(STORAGE_KEY, view);
+      } catch (e) {
+        // Ignore storage failures — the toggle still works for this view.
+      }
+    });
+  })();
+
   // Dynamic formset "+" button: clones a hidden <template> row (Django's
   // {{ formset.empty_form }}, using its __prefix__ placeholder) and bumps
   // TOTAL_FORMS. Works for any formset via data-formset-* attributes.

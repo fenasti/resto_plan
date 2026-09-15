@@ -585,6 +585,25 @@ class BuilderTaskRowIsASelectionCheckboxTests(TestCase):
         self.assertNotIn("☑", content)
         self.assertNotIn("✅", content)
 
+    def test_stale_done_status_from_a_reopened_plan_shows_checked_not_stuck(self):
+        # Regression: reopen_plan() steps PRODUCTION -> DRAFT without
+        # touching task status, so a task finished during a prior
+        # PRODUCTION run can arrive in DRAFT still marked DONE. The
+        # checkbox must show it as checked (not the empty box a stuck
+        # NONE<->PLANNED toggle would show), and tapping it must actually
+        # do something instead of silently no-op'ing on the unexpected value.
+        self.task.status = PrepTask.TaskStatus.DONE
+        self.task.save(update_fields=["status"])
+
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        content = resp.content.decode()
+        self.assertIn("☑", content)
+        self.assertNotIn("text-decoration-line-through", content)
+
+        self.client.post(reverse("planning:task_tap", args=[self.task.id]))
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, PrepTask.TaskStatus.NONE)
+
     def test_note_editor_is_absent_from_draft_rows(self):
         resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
         self.assertNotContains(resp, "task-note-row")
@@ -821,3 +840,151 @@ class RecurringItemsInBuilderTests(TestCase):
         )
         self.standalone.refresh_from_db()
         self.assertTrue(self.standalone.standalone_active)
+
+
+class MobileTouchUsabilityTests(TestCase):
+    """
+    Regression coverage for the mobile/tablet touch pass: a back link off
+    the Builder/Sheet, primary actions reachable in a bottom bar without
+    depending on DOM nesting inside the dish-selection form, the list/cards
+    view toggle markup, and the task-control fix that stops a near-miss tap
+    on Claim/Remove from instead firing the row's own tap-to-toggle.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000101", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.dish = Dish.objects.create(team=self.team, name="Ramen")
+        self.component = Component.objects.create(team=self.team, name="Broth")
+        DishComponent.objects.create(dish=self.dish, component=self.component, order=1)
+
+        self.plan = services.get_or_create_draft_plan(self.team, datetime.date(2026, 3, 1), self.user)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_builder_has_a_back_link_to_the_plan_list(self):
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        self.assertContains(resp, reverse("planning:plan_list"))
+        self.assertContains(resp, "btn-back")
+
+    def test_sheet_has_a_back_link_to_the_plan_list(self):
+        services.finalize_plan(self.plan, self.user)
+        resp = self.client.get(reverse("planning:plan_sheet", args=[str(self.plan.service_date)]))
+        self.assertContains(resp, reverse("planning:plan_list"))
+        self.assertContains(resp, "btn-back")
+
+    def test_builder_primary_actions_live_in_the_sticky_bar_outside_the_form(self):
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        content = resp.content.decode()
+        self.assertIn('class="prep-sticky-actions"', content)
+        # Save Draft is a native submit button placed outside <form
+        # id="builder-form">, so it must reference it via form=.
+        self.assertIn('form="builder-form"', content)
+        sticky_html = content.split('class="prep-sticky-actions"')[1]
+        self.assertIn("Save Draft", sticky_html)
+        self.assertIn("Send to Kitchen", sticky_html)
+
+    def test_sheet_primary_actions_live_in_the_sticky_bar(self):
+        services.finalize_plan(self.plan, self.user)
+        resp = self.client.get(reverse("planning:plan_sheet", args=[str(self.plan.service_date)]))
+        content = resp.content.decode()
+        sticky_html = content.split('class="prep-sticky-actions"')[1]
+        self.assertIn("Close Prep List", sticky_html)
+        self.assertIn("Reopen for Editing", sticky_html)
+
+    def test_save_draft_still_works_from_outside_the_form_via_form_attribute(self):
+        # End-to-end proof the form= association actually submits correctly
+        # now that the button lives outside <form id="builder-form">.
+        resp = self.client.post(
+            reverse("planning:plan_builder", args=[str(self.plan.service_date)]),
+            {"action": "save", "dishes": [self.dish.id]},
+        )
+        self.assertRedirects(resp, reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+
+    def test_erase_action_moved_below_the_task_list_away_from_send_to_kitchen(self):
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        content = resp.content.decode()
+        # Regression: Erase used to sit directly under Send to Kitchen in
+        # the same card, one fat-fingered tap away from a destructive
+        # action. It now lives in its own danger-zone section, outside the
+        # sticky bar entirely.
+        sticky_html = content.split('class="prep-sticky-actions"')[1]
+        self.assertNotIn("Erase Prep List", sticky_html)
+        self.assertIn("Erase Prep List", content)
+
+    def test_task_row_isolates_the_control_zone_from_the_row_tap(self):
+        # The bug: task-main-right (Claim/Unclaim, Remove, assignee badge)
+        # sat inside the row's tap-to-toggle area without being excluded as
+        # a whole, so a tap that missed the button but landed in its
+        # surrounding space still fired the row's own NONE<->DONE toggle.
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        self.assertContains(resp, 'class="task-main-right task-control"')
+
+    def test_task_groups_render_the_list_cards_view_toggle(self):
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        content = resp.content.decode()
+        self.assertIn('data-view-btn="list"', content)
+        self.assertIn('data-view-btn="cards"', content)
+        self.assertIn("data-task-view-container", content)
+
+    def test_sheet_also_renders_the_view_toggle(self):
+        services.finalize_plan(self.plan, self.user)
+        resp = self.client.get(reverse("planning:plan_sheet", args=[str(self.plan.service_date)]))
+        self.assertContains(resp, "data-task-view-container")
+
+
+class CompactCardsAndJumpNavTests(TestCase):
+    """
+    The Builder's cards are checkbox+name only (no note/claim), so they can
+    pack tighter for a "whole day at a glance" overview; the Sheet's cards
+    carry more per item and stay less dense. A jump nav of dish-name pills
+    lets you skip straight to a section on a long prep list instead of
+    scrolling through everything in order.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000102", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.dish_a = Dish.objects.create(team=self.team, name="Ramen")
+        self.dish_b = Dish.objects.create(team=self.team, name="Pad Thai")
+        self.component = Component.objects.create(team=self.team, name="Broth")
+        DishComponent.objects.create(dish=self.dish_a, component=self.component, order=1)
+        DishComponent.objects.create(dish=self.dish_b, component=self.component, order=1)
+
+        self.plan = services.get_or_create_draft_plan(self.team, datetime.date(2026, 3, 1), self.user)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_builder_cards_are_scoped_as_the_builder_screen(self):
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        self.assertContains(resp, 'data-screen="builder"')
+
+    def test_sheet_cards_are_scoped_as_the_sheet_screen(self):
+        services.finalize_plan(self.plan, self.user)
+        resp = self.client.get(reverse("planning:plan_sheet", args=[str(self.plan.service_date)]))
+        self.assertContains(resp, 'data-screen="sheet"')
+
+    def test_jump_nav_appears_with_multiple_dish_groups(self):
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        content = resp.content.decode()
+        self.assertIn("dish-jump-nav", content)
+        self.assertIn(f'href="#dish-{self.dish_a.id}"', content)
+        self.assertIn(f'href="#dish-{self.dish_b.id}"', content)
+        self.assertIn(f'id="dish-{self.dish_a.id}"', content)
+        self.assertIn(f'id="dish-{self.dish_b.id}"', content)
+
+    def test_jump_nav_is_absent_with_a_single_dish_and_no_extras(self):
+        services.set_plandishes(self.plan, [self.dish_a.id])
+        services.build_placeholders_hard_reset(self.plan)
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        self.assertNotContains(resp, "dish-jump-nav")

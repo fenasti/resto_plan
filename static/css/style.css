@@ -120,6 +120,7 @@
 
 .prep-task-group {
   margin-bottom: 1.5rem;
+  scroll-margin-top: 3.25rem;
 }
 
 .prep-task-title {
@@ -411,4 +412,183 @@
   .prep-navbar-actions .btn {
     width: auto;
   }
+}
+
+/* Back link on the Builder/Sheet screens — a quick, thumb-friendly way back
+   to the Prep Lists index instead of opening the mobile hamburger menu. */
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+}
+
+/* Fixed bottom action bar: on phones/tablets the primary actions (Save
+   Draft/Send to Kitchen, Close Prep List/Reopen) stay reachable without
+   scrolling back up past the task list. On desktop it settles back into
+   normal flow, right-aligned like the old header actions. */
+.prep-shell-with-sticky-bar {
+  padding-bottom: 5.5rem;
+}
+
+.prep-sticky-actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1030;
+  background: #fff;
+  border-top: 1px solid #dee2e6;
+  padding: 0.65rem 1rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.prep-sticky-actions-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.prep-sticky-actions-inner > * {
+  flex: 1 1 0;
+  min-height: 48px;
+}
+
+@media (min-width: 992px) {
+  .prep-shell-with-sticky-bar {
+    padding-bottom: 0;
+  }
+
+  .prep-sticky-actions {
+    position: static;
+    background: transparent;
+    border-top: 0;
+    box-shadow: none;
+    padding: 0;
+    margin-top: 1.5rem;
+  }
+
+  .prep-sticky-actions-inner {
+    margin: 0;
+    justify-content: flex-end;
+  }
+
+  .prep-sticky-actions-inner > * {
+    flex: 0 0 auto;
+    min-height: auto;
+  }
+}
+
+/* Bigger touch targets for the row-level controls (Claim/Unclaim, Remove,
+   note save/edit) so a slightly-off tap doesn't miss the button and land on
+   the row's own tap-to-toggle area instead. */
+@media (max-width: 991.98px) {
+  .task-main-right .btn,
+  .task-note-row .btn,
+  .task-note-form .btn {
+    min-height: 44px;
+    padding: 0.5rem 0.9rem;
+  }
+
+  .task-main-right {
+    gap: 0.6rem;
+  }
+
+  .task-main {
+    min-height: 44px;
+  }
+}
+
+/* List/Cards view toggle for the task groups (Builder + Sheet share this
+   via partials/task_groups.html). Defaults to list; switching to cards
+   lays each dish's items out two-per-row so you can see more of the map
+   at once on a tablet without them getting too small. */
+.task-view-toggle {
+  display: inline-flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.task-view-toggle .btn {
+  min-height: 40px;
+}
+
+[data-view="cards"] .list-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+[data-view="cards"] .list-group-item {
+  border: 1px solid #dee2e6 !important;
+  border-radius: 0.75rem !important;
+  margin: 0 !important;
+}
+
+/* Keep the checkbox glyph and name on the same line even when the name is
+   long — let the name wrap within its own space instead of the whole
+   name dropping below the checkbox. */
+[data-view="cards"] .task-main-left {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+/* The Builder's cards only ever show a checkbox + name (no note/claim), so
+   they can pack tighter — three across gives a more "whole map at once"
+   overview on a phone. The Sheet's cards carry more content (claim, note)
+   and stay at two. */
+[data-screen="builder"][data-view="cards"] .list-group {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 420px) {
+  /* Below this width even the Builder's minimal cards can't hold more than
+     one column, so Cards would look identical to List (just rounded
+     corners) — hide the toggle instead of offering a choice that does
+     nothing. */
+  .task-view-toggle {
+    display: none;
+  }
+
+  [data-view="cards"] .list-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Jump nav: a sticky row of dish-name pills so a long prep list can be
+   navigated without scrolling through every section in order. */
+.dish-jump-nav {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.5rem 0;
+  margin-bottom: 1rem;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+}
+
+.dish-jump-nav a {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  background: #f1f3f5;
+  color: #495057;
+  text-decoration: none;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.dish-jump-nav a:hover,
+.dish-jump-nav a:focus {
+  background: #dee2e6;
+}
+
+html {
+  scroll-behavior: smooth;
 }

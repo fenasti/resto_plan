@@ -160,10 +160,14 @@ def task_tap(task_id: int, user) -> PrepTask:
         raise PermissionError("Not a member of this team.")
 
     if task.plan.state == PrepPlan.PlanState.DRAFT:
-        # DRAFT: NONE<->PLANNED (no claim)
+        # DRAFT is a binary needed/not-needed decision: NONE means excluded,
+        # anything else (normally PLANNED, but also DONE if this task was
+        # marked done in a previous PRODUCTION run before the plan got
+        # reopened all the way back to DRAFT) counts as "needed". Tapping
+        # always lands on NONE or PLANNED so a stale DONE can't get stuck.
         if task.status == PrepTask.TaskStatus.NONE:
             task.status = PrepTask.TaskStatus.PLANNED
-        elif task.status == PrepTask.TaskStatus.PLANNED:
+        else:
             task.status = PrepTask.TaskStatus.NONE
         task.save(update_fields=["status"])
         return task

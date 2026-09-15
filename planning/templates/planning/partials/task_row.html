@@ -13,7 +13,7 @@
 
     <div class="task-main-left">
       {% if plan.state == "DRAFT" %}
-        <span>{% if task.status == "PLANNED" %}☑{% else %}☐{% endif %}</span>
+        <span>{% if task.status != "NONE" %}☑{% else %}☐{% endif %}</span>
       {% else %}
         <span>{% if task.status == "DONE" %}✅{% else %}☐{% endif %}</span>
       {% endif %}
@@ -24,12 +24,12 @@
         </a>
       {% endif %}
 
-      <span class="task-name {% if task.status == 'DONE' %}text-decoration-line-through{% endif %}">
+      <span class="task-name {% if task.status == 'DONE' and plan.state != 'DRAFT' %}text-decoration-line-through{% endif %}">
         {{ task.display_name }}
       </span>
     </div>
 
-    <div class="task-main-right">
+    <div class="task-main-right task-control">
       {% if task.assignee and task.assignee.cookprofile.avatar %}
         <img src="{{ task.assignee.cookprofile.avatar.url }}"
              class="rounded-circle"

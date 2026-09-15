@@ -1,25 +1,47 @@
-{% for group in groups %}
-  <div class="prep-task-group">
-    <h4 class="prep-task-title">{{ group.dish.name }}</h4>
-    <div class="list-group">
-      {% for task in group.tasks %}
-        {% include "planning/partials/task_row.html" with task=task %}
-      {% empty %}
-        <div class="list-group-item text-muted">No prep items assigned to this dish yet.</div>
-      {% endfor %}
-    </div>
-  </div>
-{% empty %}
-  <p>No tasks.</p>
-{% endfor %}
-
-{% if extra_tasks %}
-  <div class="prep-task-group">
-    <h4 class="prep-task-title">Extra</h4>
-    <div class="list-group">
-      {% for task in extra_tasks %}
-        {% include "planning/partials/task_row.html" with task=task %}
-      {% endfor %}
-    </div>
+{% if groups or extra_tasks %}
+  <div class="task-view-toggle" role="group" aria-label="Task view">
+    <button type="button" class="btn btn-sm btn-secondary" data-view-btn="list" aria-pressed="true">
+      <i class="bi bi-list-ul"></i> List
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-view-btn="cards" aria-pressed="false">
+      <i class="bi bi-grid-3x2-gap"></i> Cards
+    </button>
   </div>
 {% endif %}
+
+{% if groups|length > 1 or groups and extra_tasks %}
+  <nav class="dish-jump-nav" aria-label="Jump to dish">
+    {% for group in groups %}
+      <a href="#dish-{{ group.dish.id }}">{{ group.dish.name }}</a>
+    {% endfor %}
+    {% if extra_tasks %}<a href="#dish-extra">Extra</a>{% endif %}
+  </nav>
+{% endif %}
+
+<div id="task-groups-container" data-task-view-container data-screen="{{ screen }}">
+  {% for group in groups %}
+    <div class="prep-task-group" id="dish-{{ group.dish.id }}">
+      <h4 class="prep-task-title">{{ group.dish.name }}</h4>
+      <div class="list-group">
+        {% for task in group.tasks %}
+          {% include "planning/partials/task_row.html" with task=task %}
+        {% empty %}
+          <div class="list-group-item text-muted">No prep items assigned to this dish yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  {% empty %}
+    <p>No tasks.</p>
+  {% endfor %}
+
+  {% if extra_tasks %}
+    <div class="prep-task-group" id="dish-extra">
+      <h4 class="prep-task-title">Extra</h4>
+      <div class="list-group">
+        {% for task in extra_tasks %}
+          {% include "planning/partials/task_row.html" with task=task %}
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+</div>

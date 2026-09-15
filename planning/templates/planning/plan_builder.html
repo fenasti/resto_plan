@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container prep-shell py-3 py-md-4">
+<div class="container prep-shell py-3 py-md-4 prep-shell-with-sticky-bar">
+  <a class="btn btn-outline-secondary btn-back mb-2" href="{% url 'planning:plan_list' %}">
+    <i class="bi bi-arrow-left"></i> Prep Lists
+  </a>
+
   <div class="prep-header">
     <div>
       <h2>Build Prep List</h2>
@@ -42,39 +46,10 @@
         </div>
       </div>
     {% endif %}
-
-    <div class="prep-primary-actions mt-4">
-      <button class="btn btn-primary" type="submit" onclick="document.getElementById('builder-action').value='save'">
-        Save Draft
-      </button>
-
-      <button class="btn btn-success" type="button"
-              data-bs-toggle="modal" data-bs-target="#confirmModal"
-              data-confirm-title="Send to kitchen"
-              data-confirm-body="This sends the prep list to the kitchen. Cooks can claim tasks and mark them done."
-              data-confirm-submit="Send to Kitchen"
-              data-confirm-form="builder-form"
-              data-confirm-action="finalize">
-        Send to Kitchen
-      </button>
-    </div>
-
-    <div class="danger-zone mt-4">
-      <p class="small text-muted mb-2">Administrative action</p>
-      <button class="btn btn-outline-danger" type="button"
-              data-bs-toggle="modal" data-bs-target="#confirmModal"
-              data-confirm-title="Erase prep list"
-              data-confirm-body="This will permanently delete the prep list."
-              data-confirm-submit="Erase"
-              data-confirm-form="builder-form"
-              data-confirm-action="erase">
-        Erase Prep List
-      </button>
-    </div>
   </form>
 
   <div class="mt-4">
-    {% include "planning/partials/task_groups.html" with groups=groups extra_tasks=extra_tasks %}
+    {% include "planning/partials/task_groups.html" with groups=groups extra_tasks=extra_tasks screen="builder" %}
   </div>
 
   <div class="card prep-card card-body mt-3">
@@ -110,6 +85,38 @@
         <button class="btn btn-sm btn-primary" type="submit">Add</button>
       </div>
     </form>
+  </div>
+
+  <div class="danger-zone mt-4">
+    <p class="small text-muted mb-2">Administrative action</p>
+    <button class="btn btn-outline-danger" type="button"
+            data-bs-toggle="modal" data-bs-target="#confirmModal"
+            data-confirm-title="Erase prep list"
+            data-confirm-body="This will permanently delete the prep list."
+            data-confirm-submit="Erase"
+            data-confirm-form="builder-form"
+            data-confirm-action="erase">
+      Erase Prep List
+    </button>
+  </div>
+</div>
+
+<div class="prep-sticky-actions">
+  <div class="prep-sticky-actions-inner">
+    <button class="btn btn-primary" type="submit" form="builder-form"
+            onclick="document.getElementById('builder-action').value='save'">
+      Save Draft
+    </button>
+
+    <button class="btn btn-success" type="button"
+            data-bs-toggle="modal" data-bs-target="#confirmModal"
+            data-confirm-title="Send to kitchen"
+            data-confirm-body="This sends the prep list to the kitchen. Cooks can claim tasks and mark them done."
+            data-confirm-submit="Send to Kitchen"
+            data-confirm-form="builder-form"
+            data-confirm-action="finalize">
+      Send to Kitchen
+    </button>
   </div>
 </div>
 {% endblock %}
