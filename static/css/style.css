@@ -1,3 +1,14 @@
+/* Without this, touch browsers can introduce their own tap-handling delay
+   (reserved for double-tap-to-zoom detection) and, worse, occasionally
+   fire a synthetic "ghost" click ~300ms after the real one — landing on
+   whatever now sits at those screen coordinates once htmx has already
+   swapped the row's content. That's a plausible cause of taps behaving
+   correctly on desktop (mouse clicks aren't affected) but flaking on
+   mobile right after a Claim/tap swap changes the row underneath them. */
+a, button, .btn, [role="button"] {
+  touch-action: manipulation;
+}
+
 .task-main { cursor: pointer; }
 .task-main.task-main-locked { cursor: default; }
 
