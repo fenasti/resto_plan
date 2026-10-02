@@ -227,7 +227,10 @@ def reopen_plan_view(request, date_str: str):
 def task_tap_view(request, pk: int):
     if request.method != "POST":
         return HttpResponse(status=405)
-    task = services.task_tap(pk, request.user)
+    try:
+        task = services.task_tap(pk, request.user)
+    except PermissionError:
+        return HttpResponse(status=403)
     _hydrate_plan_progress(task.plan)
     return render(
         request,
@@ -239,7 +242,10 @@ def task_tap_view(request, pk: int):
 def task_claim_view(request, pk: int):
     if request.method != "POST":
         return HttpResponse(status=405)
-    task = services.task_claim(pk, request.user)
+    try:
+        task = services.task_claim(pk, request.user)
+    except PermissionError:
+        return HttpResponse(status=403)
     _hydrate_plan_progress(task.plan)
     return render(
         request,
@@ -251,14 +257,18 @@ def task_claim_view(request, pk: int):
 def task_note_view(request, pk: int):
     task = PrepTask.objects.select_related(
         "plan", "dish_component__dish", "dish_component__component", "assignee"
-    ).get(pk=pk)
+    ).filter(pk=pk, plan__team=request.team).first()
+    if not task:
+        raise Http404("Task not found.")
 
     if request.method == "GET":
         note_edit = task.plan.state != PrepPlan.PlanState.COMPLETE
         return render(request, "planning/partials/task_row.html", {"task": task, "note_edit": note_edit})
 
-    note = request.POST.get("daily_note", "")
-    task = services.set_task_note(pk, note, request.user)
+    try:
+        task = services.set_task_note(pk, request.POST.get("daily_note", ""), request.user)
+    except PermissionError:
+        return HttpResponse(status=403)
     _hydrate_plan_progress(task.plan)
     return render(
         request,
@@ -321,7 +331,7 @@ def add_adhoc_tasks_view(request, date_str: str):
 def remove_adhoc_task_view(request, pk: int):
     if request.method != "POST":
         return HttpResponse(status=405)
-    task = PrepTask.objects.select_related("plan").filter(pk=pk).first()
+    task = PrepTask.objects.select_related("plan").filter(pk=pk, plan__team=request.team).first()
     if not task:
         raise Http404("Task not found.")
     service_date = task.plan.service_date

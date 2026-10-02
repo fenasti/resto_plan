@@ -994,3 +994,70 @@ class CompactCardsAndJumpNavTests(TestCase):
         services.build_placeholders_hard_reset(self.plan)
         resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
         self.assertNotContains(resp, "dish-jump-nav")
+
+
+class CrossTeamTaskAccessTests(TestCase):
+    """
+    Security regression: a logged-in user from Team B must never be able
+    to view or act on Team A's task data by guessing/incrementing a numeric
+    task id in the URL (IDOR). task_note_view's GET branch used to fetch
+    by bare pk with no team filter at all, leaking another team's dish/
+    recipe/component name, assignee, and daily note to anyone logged in.
+    """
+
+    def setUp(self):
+        self.owner_a = User.objects.create_user(username="owner_a", password="x")
+        self.team_a = Team.objects.create(name="Kitchen A", join_code="000300", created_by=self.owner_a)
+        TeamMembership.objects.create(user=self.owner_a, team=self.team_a, role=TeamMembership.Role.OWNER)
+
+        dish = Dish.objects.create(team=self.team_a, name="Secret Dish")
+        component = Component.objects.create(team=self.team_a, name="Secret Broth")
+        DishComponent.objects.create(dish=dish, component=component, order=1)
+        self.plan_a = services.get_or_create_draft_plan(self.team_a, datetime.date(2026, 3, 1), self.owner_a)
+        self.task_a = PrepTask.objects.get(plan=self.plan_a, dish_component__component=component)
+
+        self.outsider = User.objects.create_user(username="outsider", password="x")
+        self.team_b = Team.objects.create(name="Kitchen B", join_code="000301", created_by=self.outsider)
+        TeamMembership.objects.create(user=self.outsider, team=self.team_b, role=TeamMembership.Role.OWNER)
+
+        self.client.force_login(self.outsider)
+        session = self.client.session
+        session["active_team_id"] = self.team_b.id
+        session.save()
+
+    def test_task_note_get_404s_instead_of_leaking_another_teams_task(self):
+        resp = self.client.get(reverse("planning:task_note", args=[self.task_a.id]))
+        self.assertEqual(resp.status_code, 404)
+        self.assertNotContains(resp, "Secret Broth", status_code=404)
+
+    def test_task_note_post_cannot_set_another_teams_task_note(self):
+        # The shared team-scoped lookup at the top of the view blocks this
+        # before it ever reaches the note-saving service call — a 404
+        # rather than a 403, which is even better (doesn't confirm the
+        # task exists at all).
+        resp = self.client.post(
+            reverse("planning:task_note", args=[self.task_a.id]), {"daily_note": "hijacked"}
+        )
+        self.assertEqual(resp.status_code, 404)
+        self.task_a.refresh_from_db()
+        self.assertEqual(self.task_a.daily_note, "")
+
+    def test_task_tap_blocks_a_non_member(self):
+        # Dish-component tasks default to PLANNED (checked) on creation.
+        original_status = self.task_a.status
+        resp = self.client.post(reverse("planning:task_tap", args=[self.task_a.id]))
+        self.assertEqual(resp.status_code, 403)
+        self.task_a.refresh_from_db()
+        self.assertEqual(self.task_a.status, original_status)
+
+    def test_task_claim_blocks_a_non_member(self):
+        resp = self.client.post(reverse("planning:task_claim", args=[self.task_a.id]))
+        self.assertEqual(resp.status_code, 403)
+        self.task_a.refresh_from_db()
+        self.assertIsNone(self.task_a.assignee_id)
+
+    def test_remove_adhoc_task_404s_instead_of_leaking_service_date(self):
+        adhoc = services.add_manual_task(self.plan_a, "Team A secret task", self.owner_a)
+        resp = self.client.post(reverse("planning:task_remove_adhoc", args=[adhoc.id]))
+        self.assertEqual(resp.status_code, 404)
+        self.assertTrue(PrepTask.objects.filter(pk=adhoc.pk).exists())
