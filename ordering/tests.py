@@ -94,3 +94,35 @@ class OrderDetailMobileTouchUsabilityTests(TestCase):
         sticky_html = content.split('class="prep-sticky-actions"')[1]
         self.assertNotIn("Erase Order", sticky_html)
         self.assertIn("Erase Order", content)
+
+
+class OrderListPaginationTests(TestCase):
+    """
+    Pre-launch performance audit: OrderListView loaded every historical
+    order unbounded (no paginate_by, unlike PlanListView). After months of
+    daily orders this becomes a steadily growing full-table load on every
+    visit to Order Lists.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000220", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        for i in range(25):
+            services.get_or_create_order(
+                self.team, datetime.date(2026, 1, 1) + datetime.timedelta(days=i), self.user, blank=True
+            )
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_order_list_is_paginated(self):
+        resp = self.client.get(reverse("ordering:order_list"))
+        self.assertEqual(len(resp.context["orders"]), 20)
+        self.assertTrue(resp.context["is_paginated"])
+
+        resp = self.client.get(reverse("ordering:order_list") + "?page=2")
+        self.assertEqual(len(resp.context["orders"]), 5)

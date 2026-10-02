@@ -90,6 +90,7 @@ def clone_order_to_today_view(request, date_str: str):
 class OrderListView(TeamMemberRequiredMixin, ListView):
     template_name = "ordering/order_list.html"
     context_object_name = "orders"
+    paginate_by = 20
 
     def get_queryset(self):
         return get_order_list_queryset(self.request.team)

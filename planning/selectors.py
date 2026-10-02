@@ -15,7 +15,7 @@ def get_extra_tasks(plan: PrepPlan):
     """Ad hoc/standalone tasks: not tied to any dish, shown in their own group."""
     return (
         PrepTask.objects.filter(plan=plan, dish_component__isnull=True)
-        .select_related("component", "recipe", "assignee")
+        .select_related("component", "recipe", "assignee", "assignee__cookprofile")
         .order_by("id")
     )
 
@@ -32,7 +32,9 @@ def get_adhoc_tasks(plan: PrepPlan):
 def get_sheet_groups(plan: PrepPlan):
     tasks = (
         PrepTask.objects.filter(plan=plan, dish_component__isnull=False)
-        .select_related("dish_component__dish", "dish_component__component", "assignee")
+        .select_related(
+            "dish_component__dish", "dish_component__component", "assignee", "assignee__cookprofile"
+        )
         .order_by("dish_component__dish__name", "dish_component__order", "id")
     )
 
