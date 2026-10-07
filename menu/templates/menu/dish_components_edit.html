@@ -55,39 +55,43 @@
       </div>
     {% endif %}
 
-    <div class="table-responsive">
-      <table class="table align-middle">
-        <thead>
-          <tr>
-            <th>Prep Item</th>
-            <th style="width:140px;">Order</th>
-            <th>Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for form in formset %}
+    {% if formset.forms %}
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
             <tr>
-              <td>
-                {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
-                {{ form.non_field_errors }}
-                {{ form.component.errors }}
-                {{ form.component }}
-              </td>
-              <td>
-                {{ form.order.errors }}
-                {{ form.order }}
-              </td>
-              <td>
-                {{ form.template_note.errors }}
-                {{ form.template_note }}
-              </td>
+              <th>Prep Item</th>
+              <th style="width:140px;">Order</th>
+              <th>Note</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {% for form in formset %}
+              <tr>
+                <td>
+                  {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+                  {{ form.non_field_errors }}
+                  {{ form.component.errors }}
+                  {{ form.component }}
+                </td>
+                <td>
+                  {{ form.order.errors }}
+                  {{ form.order }}
+                </td>
+                <td>
+                  {{ form.template_note.errors }}
+                  {{ form.template_note }}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-    <button class="btn btn-primary" type="submit">Save</button>
+      <button class="btn btn-primary" type="submit">Save</button>
+    {% else %}
+      <p class="text-muted mb-0">No prep items yet. Add one above to get started.</p>
+    {% endif %}
   </form>
 </div>
 {% endblock %}

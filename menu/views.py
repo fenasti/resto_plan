@@ -354,7 +354,7 @@ def component_quick_create(request, dish_pk: int):
     if refreshed_count:
         message += f" Updated {refreshed_count} draft prep sheet(s)."
     messages.success(request, message)
-    return redirect("menu:dish_detail", pk=dish.pk)
+    return redirect("menu:dish_components_edit", pk=dish.pk)
 
 
 @login_required

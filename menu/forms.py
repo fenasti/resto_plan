@@ -56,6 +56,7 @@ class ComponentForm(forms.ModelForm):
         if team is not None:
             self.fields["recipe"].queryset = Recipe.objects.filter(team=team).order_by("name")
         self.fields["recipe"].required = False
+        self.fields["recipe"].empty_label = "Recipe"
 
     class Meta:
         model = Component
@@ -87,6 +88,7 @@ class QuickComponentForm(forms.Form):
     recipe = forms.ModelChoiceField(
         queryset=Recipe.objects.none(),
         required=False,
+        empty_label="Recipe",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
 
@@ -114,7 +116,7 @@ DishComponentFormSet = inlineformset_factory(
     parent_model=Dish,
     model=DishComponent,
     fields=["component", "order", "template_note"],
-    extra=3,
+    extra=0,
     can_delete=False,
     widgets={
         "component": forms.Select(attrs={"class": "form-select"}),

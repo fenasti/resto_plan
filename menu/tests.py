@@ -323,7 +323,9 @@ class ComponentQuickCreateTests(TestCase):
         response = self.client.post(
             reverse("menu:component_quick_create", args=[self.dish.pk]), payload
         )
-        self.assertRedirects(response, reverse("menu:dish_detail", args=[self.dish.pk]))
+        # Stays on Edit Prep Items instead of bouncing to Dish Detail, so
+        # the newly added item shows up right there and you can keep adding.
+        self.assertRedirects(response, reverse("menu:dish_components_edit", args=[self.dish.pk]))
         self.assertTrue(Component.objects.filter(team=self.team, name="Chop chives").exists())
         broth = Component.objects.get(team=self.team, name="Base Broth")
         self.assertEqual(broth.recipe_id, self.recipe.id)
@@ -368,6 +370,46 @@ class ComponentQuickCreateTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Component.objects.filter(team=self.team, name="Chop chives").exists())
+
+
+class DishComponentsEditEmptyStateTests(TestCase):
+    """
+    Edit Prep Items used to always render 3 blank formset rows (extra=3),
+    even for a dish with zero prep items, which looked like pre-filled
+    placeholders rather than an empty list. Now it shows exactly the
+    existing items, or a plain "no items yet" message when there are none.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000032", created_by=self.user)
+        TeamMembership.objects.create(
+            user=self.user, team=self.team, role=TeamMembership.Role.OWNER, can_manage_menu=True
+        )
+        self.dish = Dish.objects.create(team=self.team, name="Ramen")
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_no_prep_items_shows_empty_message_not_blank_rows(self):
+        resp = self.client.get(reverse("menu:dish_components_edit", args=[self.dish.pk]))
+        self.assertContains(resp, "No prep items yet")
+        self.assertNotContains(resp, 'name="dish_components-0-component"')
+
+    def test_existing_prep_items_render_with_no_extra_blank_rows(self):
+        component = Component.objects.create(team=self.team, name="Broth")
+        DishComponent.objects.create(dish=self.dish, component=component, order=1)
+
+        resp = self.client.get(reverse("menu:dish_components_edit", args=[self.dish.pk]))
+        self.assertContains(resp, 'name="dish_components-0-component"')
+        self.assertNotContains(resp, 'name="dish_components-1-component"')
+
+    def test_recipe_placeholder_reads_recipe_not_dashes(self):
+        resp = self.client.get(reverse("menu:dish_components_edit", args=[self.dish.pk]))
+        self.assertContains(resp, ">Recipe</option>")
+        self.assertNotContains(resp, ">---------</option>")
 
 
 class ToggleStandaloneActiveTests(TestCase):
