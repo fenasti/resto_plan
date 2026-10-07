@@ -1,4 +1,5 @@
 {% load static %}
+{% load static_extras %}
 <!doctype html>
 <html lang="en" data-accent="{{ active_team.accent_color|default:'blue' }}">
 <head>
@@ -29,7 +30,7 @@
   <!-- HTMX -->
   <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
 
-  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <link rel="stylesheet" href="{% static_v 'css/style.css' %}">
 </head>
 <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
   {% include "includes/navbar.html" %}
@@ -41,6 +42,6 @@
   </main>
 
   <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
-  <script src="{% static 'js/app.js' %}"></script>
+  <script src="{% static_v 'js/app.js' %}"></script>
 </body>
 </html>

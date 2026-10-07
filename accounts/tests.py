@@ -163,3 +163,28 @@ class DarkModeToggleTests(TestCase):
 
         resp = self.client.get(reverse("home:index"))
         self.assertContains(resp, "data-theme-toggle")
+
+
+class StaticCacheBustTests(TestCase):
+    """
+    static_v appends ?v=<mtime> in DEBUG so a browser never serves a stale
+    cached style.css/app.js after an edit on the dev server. In production
+    WhiteNoise's manifest storage already content-hashes the filename
+    itself, so this is deliberately a no-op there.
+    """
+
+    def test_debug_mode_appends_a_version_query_string(self):
+        from django.template import Context, Template
+        from django.test import override_settings
+
+        with override_settings(DEBUG=True):
+            rendered = Template("{% load static_extras %}{% static_v 'js/app.js' %}").render(Context({}))
+        self.assertRegex(rendered, r"^/static/js/app\.js\?v=\d+$")
+
+    def test_production_mode_does_not_append_a_version_query_string(self):
+        from django.template import Context, Template
+        from django.test import override_settings
+
+        with override_settings(DEBUG=False):
+            rendered = Template("{% load static_extras %}{% static_v 'js/app.js' %}").render(Context({}))
+        self.assertNotIn("?v=", rendered)
