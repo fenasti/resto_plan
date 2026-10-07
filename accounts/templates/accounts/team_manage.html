@@ -8,7 +8,41 @@
   <div class="prep-header">
     <div>
       <h2>Manage Team</h2>
-      <div class="text-muted">{{ team.name }}</div>
+      <div class="text-muted">{{ team.shown_name }}{% if team.display_name %} <span class="text-muted">({{ team.name }})</span>{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="card prep-card shadow-sm mt-3">
+    <div class="card-body">
+      <h5 class="mb-1">Appearance</h5>
+      <p class="text-muted mb-3">Give this workspace its own name and color around the app — purely cosmetic, the real team name and join code don't change.</p>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_appearance">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Display name</label>
+            {{ appearance_form.display_name }}
+            {% for error in appearance_form.display_name.errors %}
+              <div class="text-danger small mt-1">{{ error }}</div>
+            {% endfor %}
+            <div class="form-text">Leave blank to just show "{{ team.name }}".</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label d-block">Accent color</label>
+            <div class="accent-swatch-row">
+              {% for radio in appearance_form.accent_color %}
+                <label class="accent-swatch accent-{{ radio.data.value }}">
+                  {{ radio.tag }}
+                  <span class="accent-swatch-dot"></span>
+                  <span class="accent-swatch-label">{{ radio.choice_label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-3" type="submit">Save Appearance</button>
+      </form>
     </div>
   </div>
 

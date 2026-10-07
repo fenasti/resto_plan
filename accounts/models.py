@@ -11,7 +11,19 @@ def validate_avatar_size(value):
         raise ValidationError("Image file too large. Max size is 5MB.")
 
 class Team(models.Model):
+    class Accent(models.TextChoices):
+        BLUE = "blue", "Blue"
+        FOREST = "forest", "Forest"
+        AMBER = "amber", "Amber"
+        PLUM = "plum", "Plum"
+        SLATE = "slate", "Slate"
+
     name = models.CharField(max_length=200, unique=True)
+    display_name = models.CharField(
+        max_length=200, blank=True,
+        help_text="Shown instead of the team name around the app. Purely cosmetic — join code and login are unaffected.",
+    )
+    accent_color = models.CharField(max_length=20, choices=Accent.choices, default=Accent.BLUE)
     join_code = models.CharField(max_length=12, unique=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="teams_created")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -24,6 +36,10 @@ class Team(models.Model):
     def generate_join_code() -> str:
         # 6-digit numeric code, kitchen-friendly
         return f"{secrets.randbelow(1_000_000):06d}"
+
+    @property
+    def shown_name(self) -> str:
+        return self.display_name or self.name
 
     def __str__(self):
         return self.name

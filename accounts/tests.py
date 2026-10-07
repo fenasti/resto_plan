@@ -55,3 +55,111 @@ class AccountsMobileTouchUsabilityTests(TestCase):
         resp = self.client.get(reverse("accounts:profile"))
         self.assertContains(resp, reverse("home:index"))
         self.assertContains(resp, "btn-back")
+
+
+class TeamAppearanceTests(TestCase):
+    """
+    display_name/accent_color are purely cosmetic: a fun name and a color
+    shown around the app, independent of Team.name (which stays the real,
+    unique identifier used for login/registration) and the join code.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen Alpha", join_code="000211", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_shown_name_falls_back_to_the_real_name(self):
+        self.assertEqual(self.team.shown_name, "Kitchen Alpha")
+        self.team.display_name = "The Night Shift"
+        self.team.save()
+        self.assertEqual(self.team.shown_name, "The Night Shift")
+
+    def test_navbar_shows_the_display_name_when_set(self):
+        self.team.display_name = "The Night Shift"
+        self.team.save()
+        resp = self.client.get(reverse("home:index"))
+        self.assertContains(resp, "The Night Shift")
+
+    def test_navbar_falls_back_to_real_name_without_a_display_name(self):
+        resp = self.client.get(reverse("home:index"))
+        self.assertContains(resp, "Kitchen Alpha")
+
+    def test_can_update_display_name_and_accent_color(self):
+        resp = self.client.post(reverse("accounts:team_manage"), {
+            "action": "update_appearance",
+            "display_name": "The Night Shift",
+            "accent_color": "forest",
+        })
+        self.assertRedirects(resp, reverse("accounts:team_manage"))
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.display_name, "The Night Shift")
+        self.assertEqual(self.team.accent_color, "forest")
+
+    def test_real_team_name_and_join_code_are_unaffected(self):
+        self.client.post(reverse("accounts:team_manage"), {
+            "action": "update_appearance",
+            "display_name": "The Night Shift",
+            "accent_color": "forest",
+        })
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.name, "Kitchen Alpha")
+        self.assertEqual(self.team.join_code, "000211")
+
+    def test_non_manager_cannot_update_appearance(self):
+        member = User.objects.create_user(username="member", password="x")
+        membership = TeamMembership.objects.create(
+            user=member, team=self.team, role=TeamMembership.Role.MEMBER
+        )
+        membership.can_manage_team = False
+        membership.save()
+
+        self.client.force_login(member)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+        resp = self.client.post(reverse("accounts:team_manage"), {
+            "action": "update_appearance",
+            "display_name": "Hijacked Name",
+            "accent_color": "amber",
+        })
+        self.assertRedirects(resp, reverse("home:index"))
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.display_name, "")
+
+    def test_html_root_carries_the_accent_attribute(self):
+        self.team.accent_color = "plum"
+        self.team.save()
+        resp = self.client.get(reverse("home:index"))
+        self.assertContains(resp, 'data-accent="plum"')
+
+    def test_default_accent_is_blue(self):
+        resp = self.client.get(reverse("home:index"))
+        self.assertContains(resp, 'data-accent="blue"')
+
+
+class DarkModeToggleTests(TestCase):
+    def test_theme_toggle_button_present_for_logged_out_visitors(self):
+        # The toggle lives outside the auth-gated part of the navbar, so it
+        # should show up even on the login page.
+        resp = self.client.get(reverse("account_login"))
+        self.assertContains(resp, "data-theme-toggle")
+
+    def test_theme_toggle_button_present_for_a_team_member(self):
+        user = User.objects.create_user(username="cook", password="x")
+        team = Team.objects.create(name="Kitchen", join_code="000212", created_by=user)
+        TeamMembership.objects.create(user=user, team=team, role=TeamMembership.Role.OWNER)
+
+        self.client.force_login(user)
+        session = self.client.session
+        session["active_team_id"] = team.id
+        session.save()
+
+        resp = self.client.get(reverse("home:index"))
+        self.assertContains(resp, "data-theme-toggle")

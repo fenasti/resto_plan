@@ -56,7 +56,7 @@ a, button, .btn, [role="button"] {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #6c757d;
+  color: var(--bs-secondary-color);
 }
 
 .prep-header {
@@ -113,9 +113,9 @@ a, button, .btn, [role="button"] {
 
 .secondary-action-panel {
   padding: 1rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--bs-border-color);
   border-radius: 1rem;
-  background: #f8f9fa;
+  background: var(--bs-tertiary-bg);
 }
 
 .danger-zone {
@@ -146,7 +146,7 @@ a, button, .btn, [role="button"] {
   height: 0.7rem;
   border-radius: 999px;
   overflow: hidden;
-  background: #e9ecef;
+  background: var(--bs-secondary-bg);
 }
 
 .prep-progress .progress-bar {
@@ -167,9 +167,9 @@ a, button, .btn, [role="button"] {
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--bs-border-color);
   border-radius: 1rem;
-  background: #fff;
+  background: var(--bs-body-bg);
 }
 
 .order-editor-toolbar {
@@ -189,7 +189,7 @@ a, button, .btn, [role="button"] {
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #6c757d;
+  color: var(--bs-secondary-color);
 }
 
 .order-table td {
@@ -227,7 +227,7 @@ a, button, .btn, [role="button"] {
   margin-bottom: 0.4rem;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #6c757d;
+  color: var(--bs-secondary-color);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -311,9 +311,9 @@ a, button, .btn, [role="button"] {
   .order-table tr {
     margin-bottom: 0.9rem;
     padding: 0.9rem;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--bs-border-color);
     border-radius: 0.9rem;
-    background: #fff;
+    background: var(--bs-body-bg);
   }
 
   .order-table tr:last-child {
@@ -337,7 +337,7 @@ a, button, .btn, [role="button"] {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    color: #6c757d;
+    color: var(--bs-secondary-color);
   }
 
   .order-item-name,
@@ -462,10 +462,10 @@ a, button, .btn, [role="button"] {
   right: 0;
   bottom: 0;
   z-index: 1030;
-  background: #fff;
-  border-top: 1px solid #dee2e6;
+  background: var(--bs-body-bg);
+  border-top: 1px solid var(--bs-border-color);
   padding: 0.65rem 1rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.16);
 }
 
 .prep-sticky-actions-inner {
@@ -546,7 +546,7 @@ a, button, .btn, [role="button"] {
 }
 
 [data-view="cards"] .list-group-item {
-  border: 1px solid #dee2e6 !important;
+  border: 1px solid var(--bs-border-color) !important;
   border-radius: 0.75rem !important;
   margin: 0 !important;
 }
@@ -593,16 +593,16 @@ a, button, .btn, [role="button"] {
   -webkit-overflow-scrolling: touch;
   padding: 0.5rem 0;
   margin-bottom: 1rem;
-  background: #fff;
-  border-bottom: 1px solid #eee;
+  background: var(--bs-body-bg);
+  border-bottom: 1px solid var(--bs-border-color);
 }
 
 .dish-jump-nav a {
   flex: 0 0 auto;
   padding: 0.35rem 0.8rem;
   border-radius: 999px;
-  background: #f1f3f5;
-  color: #495057;
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-secondary-color);
   text-decoration: none;
   font-size: 0.85rem;
   white-space: nowrap;
@@ -610,11 +610,141 @@ a, button, .btn, [role="button"] {
 
 .dish-jump-nav a:hover,
 .dish-jump-nav a:focus {
-  background: #dee2e6;
+  background: var(--bs-secondary-bg);
 }
 
 html {
   scroll-behavior: smooth;
+}
+
+/* ---------- Dark mode toggle ---------- */
+.theme-toggle {
+  border: 0;
+  line-height: 1;
+  padding: 0.35rem 0.5rem;
+}
+
+.theme-icon-light { display: none; }
+.theme-icon-dark { display: inline; }
+
+/* base.html's inline script always resolves data-bs-theme explicitly
+   (from a saved choice, or the OS preference on first visit) before first
+   paint, so these two states are the only ones that matter here. */
+html[data-bs-theme="dark"] .theme-icon-light { display: inline; }
+html[data-bs-theme="dark"] .theme-icon-dark { display: none; }
+html[data-bs-theme="light"] .theme-icon-light { display: none; }
+html[data-bs-theme="light"] .theme-icon-dark { display: inline; }
+
+/* ---------- Team accent color ---------- */
+.accent-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.accent-swatch {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.65rem 0.35rem 0.4rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.accent-swatch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.accent-swatch:has(input:checked) {
+  border-color: var(--bs-body-color);
+  font-weight: 600;
+}
+
+.accent-swatch-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.accent-blue .accent-swatch-dot { background: #0d6efd; }
+.accent-forest .accent-swatch-dot { background: #1f6f3f; }
+.accent-amber .accent-swatch-dot { background: #b5690f; }
+.accent-plum .accent-swatch-dot { background: #7a3b66; }
+.accent-slate .accent-swatch-dot { background: #3e4c59; }
+
+/* Each non-default accent overrides the same custom properties Bootstrap's
+   own compiled CSS sets locally on .btn-primary/.btn-outline-primary (it
+   doesn't read a single shared --bs-primary at runtime, so each button
+   variant needs its own override) plus the link color. "blue" needs no
+   override — it's already Bootstrap's own default. */
+[data-accent="forest"] { --bs-link-color-rgb: 31, 111, 63; --bs-link-hover-color-rgb: 24, 89, 50; }
+[data-accent="forest"] .btn-primary {
+  --bs-btn-bg: #1f6f3f; --bs-btn-border-color: #1f6f3f;
+  --bs-btn-hover-bg: #185932; --bs-btn-hover-border-color: #154d2b;
+  --bs-btn-active-bg: #154d2b; --bs-btn-active-border-color: #124026;
+  --bs-btn-disabled-bg: #1f6f3f; --bs-btn-disabled-border-color: #1f6f3f;
+  --bs-btn-focus-shadow-rgb: 31, 111, 63;
+}
+[data-accent="forest"] .btn-outline-primary {
+  --bs-btn-color: #1f6f3f; --bs-btn-border-color: #1f6f3f;
+  --bs-btn-hover-bg: #1f6f3f; --bs-btn-hover-border-color: #1f6f3f;
+  --bs-btn-active-bg: #1f6f3f; --bs-btn-active-border-color: #1f6f3f;
+  --bs-btn-disabled-color: #1f6f3f; --bs-btn-disabled-border-color: #1f6f3f;
+  --bs-btn-focus-shadow-rgb: 31, 111, 63;
+}
+
+[data-accent="amber"] { --bs-link-color-rgb: 181, 105, 15; --bs-link-hover-color-rgb: 145, 84, 12; }
+[data-accent="amber"] .btn-primary {
+  --bs-btn-bg: #b5690f; --bs-btn-border-color: #b5690f;
+  --bs-btn-hover-bg: #91540c; --bs-btn-hover-border-color: #7a470a;
+  --bs-btn-active-bg: #7a470a; --bs-btn-active-border-color: #633909;
+  --bs-btn-disabled-bg: #b5690f; --bs-btn-disabled-border-color: #b5690f;
+  --bs-btn-focus-shadow-rgb: 181, 105, 15;
+}
+[data-accent="amber"] .btn-outline-primary {
+  --bs-btn-color: #b5690f; --bs-btn-border-color: #b5690f;
+  --bs-btn-hover-bg: #b5690f; --bs-btn-hover-border-color: #b5690f;
+  --bs-btn-active-bg: #b5690f; --bs-btn-active-border-color: #b5690f;
+  --bs-btn-disabled-color: #b5690f; --bs-btn-disabled-border-color: #b5690f;
+  --bs-btn-focus-shadow-rgb: 181, 105, 15;
+}
+
+[data-accent="plum"] { --bs-link-color-rgb: 122, 59, 102; --bs-link-hover-color-rgb: 98, 47, 82; }
+[data-accent="plum"] .btn-primary {
+  --bs-btn-bg: #7a3b66; --bs-btn-border-color: #7a3b66;
+  --bs-btn-hover-bg: #622f52; --bs-btn-hover-border-color: #532845;
+  --bs-btn-active-bg: #532845; --bs-btn-active-border-color: #432138;
+  --bs-btn-disabled-bg: #7a3b66; --bs-btn-disabled-border-color: #7a3b66;
+  --bs-btn-focus-shadow-rgb: 122, 59, 102;
+}
+[data-accent="plum"] .btn-outline-primary {
+  --bs-btn-color: #7a3b66; --bs-btn-border-color: #7a3b66;
+  --bs-btn-hover-bg: #7a3b66; --bs-btn-hover-border-color: #7a3b66;
+  --bs-btn-active-bg: #7a3b66; --bs-btn-active-border-color: #7a3b66;
+  --bs-btn-disabled-color: #7a3b66; --bs-btn-disabled-border-color: #7a3b66;
+  --bs-btn-focus-shadow-rgb: 122, 59, 102;
+}
+
+[data-accent="slate"] { --bs-link-color-rgb: 62, 76, 89; --bs-link-hover-color-rgb: 48, 60, 71; }
+[data-accent="slate"] .btn-primary {
+  --bs-btn-bg: #3e4c59; --bs-btn-border-color: #3e4c59;
+  --bs-btn-hover-bg: #323e48; --bs-btn-hover-border-color: #2a343d;
+  --bs-btn-active-bg: #2a343d; --bs-btn-active-border-color: #222a31;
+  --bs-btn-disabled-bg: #3e4c59; --bs-btn-disabled-border-color: #3e4c59;
+  --bs-btn-focus-shadow-rgb: 62, 76, 89;
+}
+[data-accent="slate"] .btn-outline-primary {
+  --bs-btn-color: #3e4c59; --bs-btn-border-color: #3e4c59;
+  --bs-btn-hover-bg: #3e4c59; --bs-btn-hover-border-color: #3e4c59;
+  --bs-btn-active-bg: #3e4c59; --bs-btn-active-border-color: #3e4c59;
+  --bs-btn-disabled-color: #3e4c59; --bs-btn-disabled-border-color: #3e4c59;
+  --bs-btn-focus-shadow-rgb: 62, 76, 89;
 }
 
 /* Bigger touch targets for per-row catalog actions (Menu Setup, Prep

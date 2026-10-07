@@ -33,7 +33,22 @@ class TeamSelectForm(forms.Form):
 
     def __init__(self, *args, teams=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["team_id"].choices = [(t.id, t.name) for t in (teams or [])]
+        self.fields["team_id"].choices = [
+            (t.id, f"{t.display_name} ({t.name})" if t.display_name else t.name)
+            for t in (teams or [])
+        ]
+
+
+class TeamAppearanceForm(forms.ModelForm):
+    class Meta:
+        model = Team
+        fields = ["display_name", "accent_color"]
+        widgets = {
+            "display_name": forms.TextInput(attrs={
+                "class": "form-control", "placeholder": "e.g. The Night Shift, El Fogón, Camp Kitchen…", "maxlength": 200,
+            }),
+            "accent_color": forms.RadioSelect,
+        }
 
 
 class MembershipUpdateForm(forms.ModelForm):

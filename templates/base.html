@@ -1,10 +1,26 @@
 {% load static %}
 <!doctype html>
-<html lang="en">
+<html lang="en" data-accent="{{ active_team.accent_color|default:'blue' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Prep App</title>
+  <script>
+    // Applied before first paint to avoid a flash of the wrong theme.
+    // Bootstrap only switches to dark via an explicit data-bs-theme
+    // attribute — it doesn't read prefers-color-scheme on its own — so an
+    // unset preference is resolved against the OS setting right here,
+    // once, rather than left on Bootstrap's light default.
+    (function () {
+      try {
+        var saved = localStorage.getItem("prepapp:theme");
+        var theme = saved === "light" || saved === "dark"
+          ? saved
+          : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.setAttribute("data-bs-theme", theme);
+      } catch (e) {}
+    })();
+  </script>
 
   <!-- Bootstrap -->
   <link href="{% static 'vendor/bootstrap/bootstrap.min.css' %}" rel="stylesheet">

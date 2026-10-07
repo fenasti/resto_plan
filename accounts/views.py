@@ -10,6 +10,7 @@ from .forms import (
     TeamCreateForm,
     TeamJoinForm,
     TeamSelectForm,
+    TeamAppearanceForm,
     MembershipUpdateForm,
     PlatformStaffToggleForm,
 )
@@ -163,7 +164,12 @@ class TeamManageView(TeamPermissionRequiredMixin, TemplateView):
     def get(self, request, *args, **kwargs):
         team = request.team
         memberships = TeamMembership.objects.filter(team=team).select_related("user").order_by("user__username")
-        return render(request, self.template_name, {"team": team, "memberships": memberships})
+        appearance_form = TeamAppearanceForm(instance=team)
+        return render(
+            request,
+            self.template_name,
+            {"team": team, "memberships": memberships, "appearance_form": appearance_form},
+        )
 
     def post(self, request, *args, **kwargs):
         team = request.team
@@ -172,6 +178,15 @@ class TeamManageView(TeamPermissionRequiredMixin, TemplateView):
         if action == "rotate_code":
             team.rotate_join_code()
             messages.success(request, "Join code rotated.")
+            return redirect("accounts:team_manage")
+
+        if action == "update_appearance":
+            appearance_form = TeamAppearanceForm(request.POST, instance=team)
+            if appearance_form.is_valid():
+                appearance_form.save()
+                messages.success(request, "Appearance updated.")
+            else:
+                messages.error(request, "Could not update appearance.")
             return redirect("accounts:team_manage")
 
         if action in ("update_member", "remove_member"):

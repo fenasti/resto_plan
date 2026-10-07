@@ -9,6 +9,28 @@ document.addEventListener(
     true
   );
 
+  // Dark mode toggle. Defaults to the OS preference (no data-bs-theme
+  // attribute at all) until the user explicitly picks one, then that
+  // choice is remembered per-browser and applied before first paint by
+  // the inline script in base.html.
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-theme-toggle]");
+    if (!btn) return;
+
+    const root = document.documentElement;
+    const current = root.getAttribute("data-bs-theme");
+    const systemPrefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const currentlyDark = current ? current === "dark" : systemPrefersDark;
+    const next = currentlyDark ? "light" : "dark";
+
+    root.setAttribute("data-bs-theme", next);
+    try {
+      localStorage.setItem("prepapp:theme", next);
+    } catch (err) {
+      // Private browsing / blocked storage: the toggle still works for this page view.
+    }
+  });
+
   // Django requires a CSRF token on HTMX POST requests such as task tap/claim.
   document.body.addEventListener("htmx:configRequest", function (event) {
     const csrfInput = document.querySelector("[name=csrfmiddlewaretoken]");
