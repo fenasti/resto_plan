@@ -1061,3 +1061,74 @@ class CrossTeamTaskAccessTests(TestCase):
         resp = self.client.post(reverse("planning:task_remove_adhoc", args=[adhoc.id]))
         self.assertEqual(resp.status_code, 404)
         self.assertTrue(PrepTask.objects.filter(pk=adhoc.pk).exists())
+
+
+class CompactClaimedStateControlTests(TestCase):
+    """
+    Regression for a real mobile bug: a full-width "Unclaim" button sat
+    right where a thumb lands trying to tap the rest of the row to advance
+    the task, so a near-miss tap re-triggered an accidental unclaim instead
+    of marking it done. The claimed-state control is now the small
+    avatar/username badge itself — still the only way to unclaim, but a much
+    smaller target that doesn't dominate the row.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="claim_cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000310", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.dish = Dish.objects.create(team=self.team, name="Ramen")
+        self.component = Component.objects.create(team=self.team, name="Broth")
+        DishComponent.objects.create(dish=self.dish, component=self.component, order=1)
+
+        self.plan = services.get_or_create_draft_plan(self.team, datetime.date(2026, 3, 1), self.user)
+        services.finalize_plan(self.plan, self.user)
+        self.task = PrepTask.objects.get(plan=self.plan, dish_component__component=self.component)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_unclaimed_task_shows_the_claim_button(self):
+        resp = self.client.get(reverse("planning:plan_sheet", args=[str(self.plan.service_date)]))
+        content = resp.content.decode()
+        self.assertIn("btn-outline-success", content)
+        self.assertIn("Claim", content)
+        self.assertNotIn("assignee-button", content)
+
+    def test_claimed_task_shows_the_compact_control_not_a_text_unclaim_button(self):
+        self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        resp = self.client.get(reverse("planning:plan_sheet", args=[str(self.plan.service_date)]))
+        self.assertContains(resp, "assignee-button")
+        self.assertContains(resp, "claim_cook")
+        self.assertNotContains(resp, ">Unclaim<")
+
+    def test_no_raw_comment_text_leaks_into_the_rendered_row(self):
+        # The {% comment %} block replaced an invalid multi-line {# #} tag
+        # that Django silently rendered as literal text instead of
+        # stripping — assert the explanation text never reaches the page.
+        self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        resp = self.client.get(reverse("planning:plan_sheet", args=[str(self.plan.service_date)]))
+        self.assertNotContains(resp, "small and deliberate")
+
+    def test_tapping_the_compact_control_still_unclaims(self):
+        self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        self.task.refresh_from_db()
+        self.assertIsNotNone(self.task.assignee_id)
+
+        self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        self.task.refresh_from_db()
+        self.assertIsNone(self.task.assignee_id)
+        self.assertEqual(self.task.status, PrepTask.TaskStatus.NONE)
+
+    def test_row_tap_still_advances_a_claimed_task_to_done(self):
+        self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, PrepTask.TaskStatus.PLANNED)
+
+        self.client.post(reverse("planning:task_tap", args=[self.task.id]))
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, PrepTask.TaskStatus.DONE)
+        self.assertIsNotNone(self.task.assignee_id)

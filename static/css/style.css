@@ -505,8 +505,8 @@ a, button, .btn, [role="button"] {
   }
 }
 
-/* Bigger touch targets for the row-level controls (Claim/Unclaim, Remove,
-   note save/edit) so a slightly-off tap doesn't miss the button and land on
+/* Bigger touch targets for the row-level controls (Claim, Remove, note
+   save/edit) so a slightly-off tap doesn't miss the button and land on
    the row's own tap-to-toggle area instead. */
 @media (max-width: 991.98px) {
   .task-main-right .btn,
@@ -523,6 +523,21 @@ a, button, .btn, [role="button"] {
   .task-main {
     min-height: 44px;
   }
+}
+
+/* The claimed-state indicator is deliberately small and self-contained —
+   tapping it is the only way to unclaim, instead of a full-width "Unclaim"
+   button sitting in the same spot a thumb lands trying to tap the rest of
+   the row to advance the task. */
+.assignee-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.6rem;
+}
+
+.assignee-button img {
+  display: block;
 }
 
 /* List/Cards view toggle for the task groups (Builder + Sheet share this

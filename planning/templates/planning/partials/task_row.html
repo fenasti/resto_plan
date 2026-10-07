@@ -30,23 +30,42 @@
     </div>
 
     <div class="task-main-right">
-      {% if task.assignee and task.assignee.cookprofile.avatar %}
-        <img src="{{ task.assignee.cookprofile.avatar.url }}"
-             class="rounded-circle"
-             width="24" height="24"
-             alt="assignee">
+      {% if plan.state == "PRODUCTION" and task.assignee %}
+        {% comment %}
+          Claimed: the avatar/badge itself is the only way to unclaim — small
+          and deliberate, instead of a big "Unclaim" button sitting right
+          where a thumb lands trying to tap the rest of the row to advance
+          the task, which was re-triggering an accidental unclaim.
+        {% endcomment %}
+        <button class="btn btn-sm btn-outline-warning task-control assignee-button"
+                hx-post="{% url 'planning:task_claim' task.id %}"
+                hx-trigger="click consume"
+                hx-target="#task-{{ task.id }}"
+                hx-swap="outerHTML"
+                hx-sync="this:drop"
+                title="Tap to unclaim">
+          {% if task.assignee.cookprofile.avatar %}
+            <img src="{{ task.assignee.cookprofile.avatar.url }}" class="rounded-circle" width="20" height="20" alt="">
+          {% else %}
+            {{ task.assignee.username }}
+          {% endif %}
+        </button>
       {% elif task.assignee %}
-        <span class="badge text-bg-success">{{ task.assignee.username }}</span>
+        {% if task.assignee.cookprofile.avatar %}
+          <img src="{{ task.assignee.cookprofile.avatar.url }}" class="rounded-circle" width="24" height="24" alt="assignee">
+        {% else %}
+          <span class="badge text-bg-success">{{ task.assignee.username }}</span>
+        {% endif %}
       {% endif %}
 
-      {% if plan.state == "PRODUCTION" %}
-        <button class="btn btn-sm {% if task.assignee %}btn-outline-warning{% else %}btn-outline-success{% endif %} task-control"
+      {% if plan.state == "PRODUCTION" and not task.assignee %}
+        <button class="btn btn-sm btn-outline-success task-control"
                 hx-post="{% url 'planning:task_claim' task.id %}"
                 hx-trigger="click consume"
                 hx-target="#task-{{ task.id }}"
                 hx-swap="outerHTML"
                 hx-sync="this:drop">
-          {% if task.assignee %}Unclaim{% else %}Claim{% endif %}
+          Claim
         </button>
       {% endif %}
 
