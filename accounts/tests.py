@@ -1,10 +1,70 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
 from .models import Team, TeamMembership
+from .views import TeamJoinView
 
 User = get_user_model()
+
+
+class TeamJoinRateLimitTests(TestCase):
+    """
+    Regression/coverage for brute-force protection on join codes: a code is
+    just 6 digits (1M possibilities) and every team is a different
+    operation's private data, so unlimited guesses must not be possible.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(username="guesser", password="x")
+        self.client.force_login(self.user)
+        self.owner = User.objects.create_user(username="owner", password="x")
+        self.team = Team.objects.create(name="Real Kitchen", join_code="123456", created_by=self.owner)
+
+    def test_wrong_codes_under_the_limit_just_show_invalid(self):
+        for _ in range(TeamJoinView.JOIN_RATE_LIMIT_MAX - 1):
+            # Plain status check, not assertRedirects — it auto-follows the
+            # redirect to verify the target, and that extra GET would
+            # consume (and clear) this iteration's message before the
+            # assertion below gets to see it.
+            resp = self.client.post(reverse("accounts:team_join"), {"join_code": "000000"})
+            self.assertEqual(resp.status_code, 302)
+        resp = self.client.get(reverse("accounts:team_join"))
+        self.assertContains(resp, "Invalid join code.")
+
+    def test_exceeding_the_limit_blocks_further_attempts_even_with_the_right_code(self):
+        for _ in range(TeamJoinView.JOIN_RATE_LIMIT_MAX):
+            self.client.post(reverse("accounts:team_join"), {"join_code": "000000"})
+
+        resp = self.client.post(reverse("accounts:team_join"), {"join_code": "123456"})
+        resp = self.client.get(reverse("accounts:team_join"))
+        self.assertContains(resp, "Too many incorrect join codes")
+        self.assertFalse(TeamMembership.objects.filter(user=self.user, team=self.team).exists())
+
+    def test_a_successful_join_resets_the_attempt_counter(self):
+        for _ in range(TeamJoinView.JOIN_RATE_LIMIT_MAX - 1):
+            self.client.post(reverse("accounts:team_join"), {"join_code": "000000"})
+
+        self.client.post(reverse("accounts:team_join"), {"join_code": "123456"})
+        self.assertTrue(TeamMembership.objects.filter(user=self.user, team=self.team).exists())
+
+        # The counter should be cleared, so a fresh wrong guess right after
+        # a success doesn't inherit the near-exhausted count.
+        resp = self.client.post(reverse("accounts:team_join"), {"join_code": "000000"})
+        resp = self.client.get(reverse("accounts:team_join"))
+        self.assertContains(resp, "Invalid join code.")
+        self.assertNotContains(resp, "Too many incorrect join codes")
+
+    def test_rate_limit_is_scoped_per_user(self):
+        for _ in range(TeamJoinView.JOIN_RATE_LIMIT_MAX):
+            self.client.post(reverse("accounts:team_join"), {"join_code": "000000"})
+
+        other_user = User.objects.create_user(username="another_cook", password="x")
+        self.client.force_login(other_user)
+        resp = self.client.post(reverse("accounts:team_join"), {"join_code": "123456"})
+        self.assertTrue(TeamMembership.objects.filter(user=other_user, team=self.team).exists())
 
 
 class FormErrorsVisibleTests(TestCase):

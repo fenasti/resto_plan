@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.cache import cache
 from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse_lazy
 from django.views.generic import UpdateView, TemplateView, FormView
@@ -97,17 +98,36 @@ class TeamStartView(LoginRequiredMixin, TemplateView):
 
 
 class TeamJoinView(LoginRequiredMixin, FormView):
+    """
+    Join codes are only 6 digits (1M possibilities) and every team is a
+    different operation's private kitchen data, so unlimited guesses would
+    let anyone script their way into a workspace they don't belong to.
+    Capped at JOIN_RATE_LIMIT_MAX attempts per JOIN_RATE_LIMIT_WINDOW.
+    """
     template_name = "accounts/team_join.html"
     form_class = TeamJoinForm
     success_url = reverse_lazy("home:index")
 
+    JOIN_RATE_LIMIT_MAX = 5
+    JOIN_RATE_LIMIT_WINDOW = 300  # seconds
+
+    def _rate_limit_key(self):
+        return f"team_join_attempts:{self.request.user.id}"
+
     def form_valid(self, form):
+        key = self._rate_limit_key()
+        if cache.get(key, 0) >= self.JOIN_RATE_LIMIT_MAX:
+            messages.error(self.request, "Too many incorrect join codes. Please wait a few minutes and try again.")
+            return redirect("accounts:team_join")
+
         code = form.cleaned_data["join_code"].strip()
         team = Team.objects.filter(join_code=code).first()
         if not team:
+            cache.set(key, cache.get(key, 0) + 1, self.JOIN_RATE_LIMIT_WINDOW)
             messages.error(self.request, "Invalid join code.")
             return redirect("accounts:team_join")
 
+        cache.delete(key)
         membership, created = TeamMembership.objects.get_or_create(user=self.request.user, team=team)
         if created:
             # New members can manage menu/recipes by default; team admin
