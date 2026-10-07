@@ -57,6 +57,57 @@ class AccountsMobileTouchUsabilityTests(TestCase):
         self.assertContains(resp, "btn-back")
 
 
+class SelfServiceTeamCreationTests(TestCase):
+    """
+    Regression: TeamCreateView used to require request.user.is_staff, which
+    made sense for a single-restaurant internal tool but broke the SaaS
+    signup path — only the very first account ever created on a deployment
+    gets auto-promoted to is_staff (see accounts.signals), so every
+    subsequent new restaurant owner hit a dead end with no way to create
+    their own workspace and become its OWNER. Any signed-in user must be
+    able to create a team now.
+    """
+
+    def setUp(self):
+        # A pre-existing staff user so the bootstrap-first-user-as-staff
+        # signal doesn't make our test user staff by accident, which would
+        # mask the bug this test guards against.
+        User.objects.create_user(username="existing_admin", password="x", is_staff=True)
+        self.user = User.objects.create_user(username="new_owner", password="x")
+        self.assertFalse(self.user.is_staff)
+        self.client.force_login(self.user)
+
+    def test_non_staff_user_can_reach_the_create_team_form(self):
+        resp = self.client.get(reverse("accounts:team_create"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_non_staff_user_creating_a_team_becomes_its_owner(self):
+        resp = self.client.post(reverse("accounts:team_create"), {"name": "New Restaurant"})
+        self.assertRedirects(resp, reverse("home:index"))
+
+        team = Team.objects.get(name="New Restaurant")
+        membership = TeamMembership.objects.get(user=self.user, team=team)
+        self.assertEqual(membership.role, TeamMembership.Role.OWNER)
+        self.assertTrue(membership.can_manage_team)
+        self.assertTrue(membership.can_manage_menu)
+        self.assertTrue(membership.can_manage_recipes)
+
+    def test_team_start_offers_create_to_non_staff_users(self):
+        resp = self.client.get(reverse("accounts:team_start"))
+        self.assertContains(resp, reverse("accounts:team_create"))
+        self.assertContains(resp, "Create a New Team")
+
+    def test_dashboard_offers_create_workspace_to_non_staff_users(self):
+        team = Team.objects.create(name="Existing", join_code="222222", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=team, role=TeamMembership.Role.OWNER)
+        session = self.client.session
+        session["active_team_id"] = team.id
+        session.save()
+
+        resp = self.client.get(reverse("home:index"))
+        self.assertContains(resp, reverse("accounts:team_create"))
+
+
 class TeamAppearanceTests(TestCase):
     """
     display_name/accent_color are purely cosmetic: a fun name and a color

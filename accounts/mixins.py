@@ -77,7 +77,8 @@ class SearchablePaginatedListMixin:
 
 class PlatformAdminRequiredMixin(LoginRequiredMixin):
     """
-    Platform admin = user.is_staff. Used to create teams and grant staff to others.
+    Platform admin = user.is_staff. Used to grant/revoke staff to others.
+    Unrelated to team creation, which any signed-in user can do.
     """
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_staff:

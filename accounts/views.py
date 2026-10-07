@@ -120,10 +120,12 @@ class TeamJoinView(LoginRequiredMixin, FormView):
         return super().form_valid(form)
 
 
-class TeamCreateView(PlatformAdminRequiredMixin, FormView):
+class TeamCreateView(LoginRequiredMixin, FormView):
     """
-    Creating a new workspace is a platform-admin action (request.user.is_staff),
-    not something every team member can do.
+    Any signed-in user can create a new workspace and becomes its OWNER —
+    this is the self-service signup path for a new restaurant, not a
+    platform-admin action. (is_staff is a separate, unrelated concern: it
+    only controls Django admin / the platform-admin screens below.)
     """
     template_name = "accounts/team_create.html"
     form_class = TeamCreateForm
