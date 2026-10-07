@@ -127,6 +127,9 @@ CLOUDINARY_STORAGE = {
     "CLOUD_NAME": os.environ.get("CLOUDINARY_CLOUD_NAME", ""),
     "API_KEY": os.environ.get("CLOUDINARY_API_KEY", ""),
     "API_SECRET": os.environ.get("CLOUDINARY_API_SECRET", ""),
+    # cloudinary_storage already defaults to secure (https) URLs, but make
+    # it explicit rather than relying on that default.
+    "SECURE": True,
 }
 
 if DEBUG:
@@ -171,3 +174,20 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = False
+
+# Without this, DEBUG=False silently swallows 500s (Django's default is to
+# email admins, which isn't configured) — nothing shows up in `heroku logs`.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}
