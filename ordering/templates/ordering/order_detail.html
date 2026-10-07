@@ -60,6 +60,12 @@
                     {% endfor %}
                   </div>
                   <div class="col-12 col-md-6">
+                    {{ create_item_form.supplier }}
+                    {% for error in create_item_form.supplier.errors %}
+                      <div class="text-danger small mt-1">{{ error }}</div>
+                    {% endfor %}
+                  </div>
+                  <div class="col-12 col-md-6">
                     {{ create_item_form.default_unit }}
                     {% for error in create_item_form.default_unit.errors %}
                       <div class="text-danger small mt-1">{{ error }}</div>
@@ -110,6 +116,9 @@
                       <td data-label="Item" class="order-item-name">
                         {{ row.form.id }}
                         <div class="fw-semibold">{{ row.item.purchase_item.name }}</div>
+                        {% if row.item.purchase_item.supplier %}
+                          <div class="small text-muted">Supplier: {{ row.item.purchase_item.supplier }}</div>
+                        {% endif %}
                         {% if row.item.purchase_item.default_unit %}
                           <div class="small text-muted">Default unit: {{ row.item.purchase_item.default_unit }}</div>
                         {% endif %}

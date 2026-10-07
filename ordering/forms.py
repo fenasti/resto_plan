@@ -43,13 +43,16 @@ class AddExistingOrderItemForm(forms.Form):
 class QuickCreatePurchaseItemForm(forms.ModelForm):
     class Meta:
         model = PurchaseItem
-        fields = ["name", "category", "default_unit"]
+        fields = ["name", "category", "supplier", "default_unit"]
         widgets = {
             "name": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "e.g. Dish soap"}
             ),
             "category": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "e.g. Cleaning"}
+            ),
+            "supplier": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "e.g. Jim's Produce"}
             ),
             "default_unit": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "e.g. bottle / box / kg"}
@@ -68,6 +71,9 @@ class QuickCreatePurchaseItemForm(forms.ModelForm):
 
     def clean_category(self):
         return self.cleaned_data["category"].strip()
+
+    def clean_supplier(self):
+        return self.cleaned_data["supplier"].strip()
 
     def clean_default_unit(self):
         return self.cleaned_data["default_unit"].strip()

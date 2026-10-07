@@ -8,6 +8,10 @@ class PurchaseItem(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="purchase_items")
     name = models.CharField(max_length=200)
     category = models.CharField(max_length=100, blank=True)
+    supplier = models.CharField(
+        max_length=150, blank=True,
+        help_text="Who you buy this from — lets an order be split and exported per supplier.",
+    )
     default_unit = models.CharField(max_length=50, blank=True)
     notes = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
@@ -22,6 +26,10 @@ class PurchaseItem(models.Model):
     @property
     def display_category(self) -> str:
         return self.category or "Other"
+
+    @property
+    def display_supplier(self) -> str:
+        return self.supplier or "No Supplier Set"
 
     def __str__(self):
         return f"{self.name} ({self.team.name})"

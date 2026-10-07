@@ -32,12 +32,17 @@ def get_most_recent_order(team, exclude_date=None):
 
 
 def clone_order_items(source: OrderList, target: OrderList) -> None:
+    # Quantities are deliberately NOT carried over — what you needed last
+    # time isn't what you need today, and a pre-filled number is easy to
+    # mistake for a fresh one and leave unchanged, leading to over- or
+    # under-ordering. The item list and notes (often standing instructions
+    # like "ask for the ripe ones") are still worth keeping.
     source_items = source.items.select_related("purchase_item").order_by("sort_order", "id")
     clones = [
         OrderListItem(
             order_list=target,
             purchase_item=item.purchase_item,
-            quantity_text=item.quantity_text,
+            quantity_text="",
             note=item.note,
             sort_order=item.sort_order,
         )

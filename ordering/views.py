@@ -237,6 +237,23 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
         return redirect("ordering:order_detail", date_str=str(order.order_date))
 
 
+_EXCEL_SHEET_INVALID_CHARS = str.maketrans("", "", "[]:*?/\\")
+
+
+def _unique_sheet_title(raw_name: str, used_titles: set) -> str:
+    """Excel sheet names: <=31 chars, no [ ] : * ? / \\, non-blank, unique
+    within the workbook."""
+    base = raw_name.translate(_EXCEL_SHEET_INVALID_CHARS).strip() or "Order List"
+    title = base[:31]
+    suffix = 2
+    while title in used_titles:
+        cut = 31 - len(f" ({suffix})")
+        title = f"{base[:cut]} ({suffix})"
+        suffix += 1
+    used_titles.add(title)
+    return title
+
+
 @login_required
 def export_order_excel(request, date_str: str):
     redirect_response = _require_active_team(request)
@@ -245,43 +262,58 @@ def export_order_excel(request, date_str: str):
 
     order = get_object_or_404(OrderList, team=request.team, order_date=_parse_date(date_str))
 
+    from collections import OrderedDict
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Order List"
-
-    bold = Font(bold=True)
-    ws["A1"] = f"Order List - {order.order_date}"
-    ws["A1"].font = Font(bold=True, size=14)
-    ws["A2"] = f"State: {order.get_state_display()}"
-
-    row = 4
-    grouped_items = {}
+    # One sheet per supplier so each can be forwarded straight to that
+    # vendor, with items grouped by category inside the sheet for
+    # readability. Items with no supplier set land on their own sheet
+    # rather than being silently dropped or lumped in with a real supplier.
+    by_supplier = OrderedDict()
     for item in get_order_item_queryset(order):
-        grouped_items.setdefault(item.purchase_item.display_category, [])
-        grouped_items[item.purchase_item.display_category].append(item)
+        supplier_group = by_supplier.setdefault(item.purchase_item.display_supplier, OrderedDict())
+        supplier_group.setdefault(item.purchase_item.display_category, []).append(item)
 
-    for category, items in grouped_items.items():
-        ws.cell(row=row, column=1, value=category).font = bold
-        row += 1
-        ws.cell(row=row, column=1, value="Item").font = bold
-        ws.cell(row=row, column=2, value="Quantity").font = bold
-        ws.cell(row=row, column=3, value="Note").font = bold
-        row += 1
+    if not by_supplier:
+        by_supplier["Order List"] = OrderedDict()
 
-        for item in items:
-            ws.cell(row=row, column=1, value=item.purchase_item.name)
-            ws.cell(row=row, column=2, value=item.quantity_text)
-            ws.cell(row=row, column=3, value=item.note)
+    wb = Workbook()
+    bold = Font(bold=True)
+    used_titles = set()
+
+    for i, (supplier, categories) in enumerate(by_supplier.items()):
+        ws = wb.active if i == 0 else wb.create_sheet()
+        ws.title = _unique_sheet_title(supplier, used_titles)
+
+        ws["A1"] = f"Order List - {order.order_date}"
+        ws["A1"].font = Font(bold=True, size=14)
+        ws["A2"] = f"Supplier: {supplier}"
+        ws["A3"] = f"State: {order.get_state_display()}"
+        row = 5
+
+        if not categories:
+            ws.cell(row=row, column=1, value="No items on this order yet.")
+
+        for category, items in categories.items():
+            ws.cell(row=row, column=1, value=category).font = bold
+            row += 1
+            ws.cell(row=row, column=1, value="Item").font = bold
+            ws.cell(row=row, column=2, value="Quantity").font = bold
+            ws.cell(row=row, column=3, value="Note").font = bold
             row += 1
 
-        row += 1
+            for item in items:
+                ws.cell(row=row, column=1, value=item.purchase_item.name)
+                ws.cell(row=row, column=2, value=item.quantity_text)
+                ws.cell(row=row, column=3, value=item.note)
+                row += 1
 
-    ws.column_dimensions["A"].width = 32
-    ws.column_dimensions["B"].width = 18
-    ws.column_dimensions["C"].width = 32
+            row += 1
+
+        ws.column_dimensions["A"].width = 32
+        ws.column_dimensions["B"].width = 18
+        ws.column_dimensions["C"].width = 32
 
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

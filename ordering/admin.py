@@ -5,9 +5,9 @@ from .models import OrderList, OrderListItem, PurchaseItem
 
 @admin.register(PurchaseItem)
 class PurchaseItemAdmin(admin.ModelAdmin):
-    list_display = ("name", "team", "category", "default_unit", "is_active")
-    list_filter = ("team", "category", "is_active")
-    search_fields = ("name", "category")
+    list_display = ("name", "team", "category", "supplier", "default_unit", "is_active")
+    list_filter = ("team", "category", "supplier", "is_active")
+    search_fields = ("name", "category", "supplier")
 
 
 class OrderListItemInline(admin.TabularInline):
