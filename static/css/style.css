@@ -536,8 +536,16 @@ a, button, .btn, [role="button"] {
   padding: 0.25rem 0.6rem;
 }
 
-.assignee-button img {
+/* Who's on this task, shown next to the task name rather than inside the
+   small unclaim button (which just holds the username as plain text). */
+.assignee-avatar,
+.assignee-badge {
+  flex-shrink: 0;
+}
+
+.assignee-avatar {
   display: block;
+  object-fit: cover;
 }
 
 /* List/Cards view toggle for the task groups (Builder + Sheet share this

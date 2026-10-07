@@ -24,6 +24,14 @@
         </a>
       {% endif %}
 
+      {% if task.assignee %}
+        {% if task.assignee.cookprofile.avatar %}
+          <img src="{{ task.assignee.cookprofile.avatar.url }}" class="rounded-circle assignee-avatar" width="22" height="22" alt="" title="{{ task.assignee.username }}">
+        {% else %}
+          <span class="badge text-bg-success assignee-badge">{{ task.assignee.username }}</span>
+        {% endif %}
+      {% endif %}
+
       <span class="task-name {% if task.status == 'DONE' and plan.state != 'DRAFT' %}text-decoration-line-through{% endif %}">
         {{ task.display_name }}
       </span>
@@ -32,10 +40,12 @@
     <div class="task-main-right">
       {% if plan.state == "PRODUCTION" and task.assignee %}
         {% comment %}
-          Claimed: the avatar/badge itself is the only way to unclaim — small
-          and deliberate, instead of a big "Unclaim" button sitting right
-          where a thumb lands trying to tap the rest of the row to advance
-          the task, which was re-triggering an accidental unclaim.
+          Claimed: this small text button is the only way to unclaim — kept
+          deliberately small and plain-text (the photo now lives next to the
+          task name instead, see task-main-left) instead of a big "Unclaim"
+          button sitting right where a thumb lands trying to tap the rest of
+          the row to advance the task, which was re-triggering an accidental
+          unclaim.
         {% endcomment %}
         <button class="btn btn-sm btn-outline-warning task-control assignee-button"
                 hx-post="{% url 'planning:task_claim' task.id %}"
@@ -44,18 +54,8 @@
                 hx-swap="outerHTML"
                 hx-sync="this:drop"
                 title="Tap to unclaim">
-          {% if task.assignee.cookprofile.avatar %}
-            <img src="{{ task.assignee.cookprofile.avatar.url }}" class="rounded-circle" width="20" height="20" alt="">
-          {% else %}
-            {{ task.assignee.username }}
-          {% endif %}
+          {{ task.assignee.username }}
         </button>
-      {% elif task.assignee %}
-        {% if task.assignee.cookprofile.avatar %}
-          <img src="{{ task.assignee.cookprofile.avatar.url }}" class="rounded-circle" width="24" height="24" alt="assignee">
-        {% else %}
-          <span class="badge text-bg-success">{{ task.assignee.username }}</span>
-        {% endif %}
       {% endif %}
 
       {% if plan.state == "PRODUCTION" and not task.assignee %}
