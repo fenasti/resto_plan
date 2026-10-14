@@ -221,6 +221,24 @@ def reopen_plan_view(request, date_str: str):
     messages.success(request, "Prep list reopened. Cooks can claim tasks and mark them done again.")
     return redirect("planning:plan_sheet", date_str=str(plan.service_date))
 
+@login_required
+def print_plan_view(request, date_str: str):
+    """
+    A blank, check-everything-by-hand replica for the kitchen's own
+    paper-based workflow (decide needed / claim with a marker / cross off
+    when done) — deliberately independent of each task's current status in
+    the app, so it always lists every one of a dish's current components
+    as an unchecked box, not just the ones already marked needed here.
+    """
+    redirect_response = _require_active_team(request)
+    if redirect_response:
+        return redirect_response
+    service_date = _parse_date(date_str)
+    plan = PrepPlan.objects.filter(team=request.team, service_date=service_date).first()
+    if not plan:
+        raise Http404("Plan not found.")
+    return render(request, "planning/print_plan.html", {"plan": plan, "groups": get_sheet_groups(plan)})
+
 
 @login_required
 def task_tap_view(request, pk: int):

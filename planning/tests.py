@@ -1216,3 +1216,82 @@ class TaskActionsOnMissingTaskReturn404Tests(TestCase):
     def test_claim_on_missing_task_returns_404_not_500(self):
         resp = self.client.post(reverse("planning:task_claim", args=[999999]))
         self.assertEqual(resp.status_code, 404)
+
+
+class PrintPlanViewTests(TestCase):
+    """
+    The printable sheet is a blank, check-everything-by-hand replica for
+    the kitchen's own paper workflow (decide needed the night before,
+    claim with a marker, cross off when done) — deliberately independent
+    of each task's live status in the app, so every one of a dish's
+    current components always shows up as a blank box, not just the ones
+    already marked needed here. Ad hoc/extra tasks are intentionally left
+    out — the kitchen pencils those in by hand if needed on paper.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000330", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.dish = Dish.objects.create(team=self.team, name="Oyster")
+        self.comp_a = Component.objects.create(team=self.team, name="Open Oyster")
+        self.comp_b = Component.objects.create(team=self.team, name="Green Nam Jim")
+        DishComponent.objects.create(dish=self.dish, component=self.comp_a, order=1)
+        DishComponent.objects.create(dish=self.dish, component=self.comp_b, order=2)
+
+        self.plan = services.get_or_create_draft_plan(self.team, datetime.date(2026, 6, 1), self.user)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_lists_dish_and_every_component_as_a_blank_checkbox(self):
+        resp = self.client.get(reverse("planning:plan_print", args=[str(self.plan.service_date)]))
+        self.assertContains(resp, "Oyster")
+        self.assertContains(resp, "Open Oyster")
+        self.assertContains(resp, "Green Nam Jim")
+        self.assertContains(resp, "print-checkbox")
+
+    def test_appears_regardless_of_current_status(self):
+        # The print output must not depend on NONE/PLANNED/DONE at all —
+        # the whole point is deciding this fresh on paper, not mirroring
+        # whatever's already been decided in the app.
+        task = PrepTask.objects.get(plan=self.plan, dish_component__component=self.comp_b)
+        task.status = PrepTask.TaskStatus.NONE
+        task.save(update_fields=["status"])
+        resp = self.client.get(reverse("planning:plan_print", args=[str(self.plan.service_date)]))
+        self.assertContains(resp, "Green Nam Jim")
+
+    def test_extra_adhoc_tasks_are_not_included(self):
+        services.add_manual_task(self.plan, "Staff meal idea", self.user)
+        resp = self.client.get(reverse("planning:plan_print", args=[str(self.plan.service_date)]))
+        self.assertNotContains(resp, "Staff meal idea")
+
+    def test_works_in_production_state_too(self):
+        services.finalize_plan(self.plan, self.user)
+        resp = self.client.get(reverse("planning:plan_print", args=[str(self.plan.service_date)]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Oyster")
+
+    def test_missing_plan_404s(self):
+        resp = self.client.get(reverse("planning:plan_print", args=["2099-01-01"]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_other_teams_plan_404s(self):
+        other_user = User.objects.create_user(username="other", password="x")
+        other_team = Team.objects.create(name="Other Kitchen", join_code="000331", created_by=other_user)
+        TeamMembership.objects.create(user=other_user, team=other_team, role=TeamMembership.Role.OWNER)
+        other_plan = services.get_or_create_draft_plan(other_team, datetime.date(2026, 6, 2), other_user)
+
+        resp = self.client.get(reverse("planning:plan_print", args=[str(other_plan.service_date)]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_print_link_appears_on_builder_and_sheet(self):
+        builder_resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        self.assertContains(builder_resp, reverse("planning:plan_print", args=[str(self.plan.service_date)]))
+
+        services.finalize_plan(self.plan, self.user)
+        sheet_resp = self.client.get(reverse("planning:plan_sheet", args=[str(self.plan.service_date)]))
+        self.assertContains(sheet_resp, reverse("planning:plan_print", args=[str(self.plan.service_date)]))

@@ -10,6 +10,9 @@
       <h2>Prep Sheet</h2>
       <div class="text-muted">{{ plan.service_date }} — {{ plan.state }}</div>
     </div>
+    <div class="prep-actions">
+      <a class="btn btn-outline-secondary" href="{% url 'planning:plan_print' plan.service_date %}">Print Prep List</a>
+    </div>
   </div>
 
   {% if plan.state == "COMPLETE" %}

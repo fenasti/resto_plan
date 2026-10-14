@@ -793,3 +793,76 @@ html[data-bs-theme="light"] .theme-icon-dark { display: inline; }
     min-height: 44px;
   }
 }
+
+/* Printable prep list: a blank, check-everything-by-hand replica of each
+   selected dish's current components — deliberately ignores task status,
+   it's a paper artifact for the kitchen's own decide/claim/cross-off
+   workflow, not a live view of the app's state. */
+.print-plan-header {
+  margin-bottom: 1.25rem;
+}
+
+.print-plan-columns {
+  column-count: 3;
+  column-gap: 2.5rem;
+}
+
+.print-dish-group {
+  break-inside: avoid;
+  margin-bottom: 1.25rem;
+}
+
+.print-dish-name {
+  font-weight: 700;
+  border-bottom: 1px solid var(--bs-border-color);
+  margin-bottom: 0.35rem;
+  padding-bottom: 0.15rem;
+}
+
+.print-check-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  break-inside: avoid;
+}
+
+.print-checkbox {
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-top: 0.2rem;
+  border: 1.5px solid currentColor;
+  flex-shrink: 0;
+}
+
+@media print {
+  .no-print,
+  nav.prep-navbar,
+  .prep-sticky-actions,
+  .alert {
+    display: none !important;
+  }
+
+  /* Force a plain light printout no matter the on-screen theme — dark
+     mode printed at bulk would burn through a lot of ink for nothing. */
+  body, .print-plan-shell {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .print-dish-name {
+    border-bottom-color: #000;
+  }
+
+  .print-checkbox {
+    border-color: #000;
+  }
+
+  .print-plan-columns {
+    column-count: 3;
+  }
+
+  @page {
+    margin: 1.2cm;
+  }
+}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container print-plan-shell">
+  <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+    <a class="btn btn-outline-secondary btn-back" href="{% url 'planning:plan_sheet' plan.service_date %}">
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
+    <button class="btn btn-primary" type="button" onclick="window.print()">Print</button>
+  </div>
+
+  <div class="print-plan-header">
+    <h2 class="mb-0">Prep List — {{ plan.service_date }}</h2>
+  </div>
+
+  {% if groups %}
+    <div class="print-plan-columns">
+      {% for group in groups %}
+        <div class="print-dish-group">
+          <div class="print-dish-name">{{ group.dish.name }}</div>
+          {% for task in group.tasks %}
+            <div class="print-check-line">
+              <span class="print-checkbox" aria-hidden="true"></span>
+              <span>{{ task.display_name }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted">No dishes selected for this prep list yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

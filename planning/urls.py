@@ -12,6 +12,7 @@ urlpatterns = [
     path("<str:date_str>/complete/", views.complete_plan_view, name="plan_complete"),
     path("<str:date_str>/reopen/", views.reopen_plan_view, name="plan_reopen"),
     path("<str:date_str>/erase/", views.erase_plan_view, name="plan_erase"),
+    path("<str:date_str>/print/", views.print_plan_view, name="plan_print"),
 
     path("tasks/<int:pk>/tap/", views.task_tap_view, name="task_tap"),
     path("tasks/<int:pk>/claim/", views.task_claim_view, name="task_claim"),
