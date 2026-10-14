@@ -6,7 +6,9 @@
       <h2>Prep Items</h2>
       <p class="text-muted mb-0">Recurring kitchen work not tied to a specific dish. Most prep items are created inline from a dish's "Edit Prep Items" screen instead.</p>
     </div>
-    <a class="btn btn-primary" href="{% url 'menu:component_create' %}">Create Prep Item</a>
+    {% if active_membership and active_membership.can_manage_menu %}
+      <a class="btn btn-primary" href="{% url 'menu:component_create' %}">Create Prep Item</a>
+    {% endif %}
   </div>
 
   <div class="mt-3">
@@ -28,19 +30,21 @@
             {% endif %}
           </div>
           <div class="d-flex gap-2 catalog-row-actions">
-            <form method="post" action="{% url 'menu:component_toggle_standalone' c.pk %}">
-              {% csrf_token %}
-              <button class="btn btn-sm btn-outline-secondary" type="submit">Toggle</button>
-            </form>
-            <a class="btn btn-sm btn-outline-primary" href="{% url 'menu:component_edit' c.pk %}">Edit</a>
-            <button class="btn btn-sm btn-outline-danger" type="button"
-                    data-bs-toggle="modal" data-bs-target="#confirmModal"
-                    data-confirm-title="Delete prep item"
-                    data-confirm-body="Delete '{{ c.name }}'? If it's used in a production prep sheet, it can't be deleted yet."
-                    data-confirm-submit="Delete"
-                    data-confirm-post="{% url 'menu:component_delete' c.pk %}">
-              Delete
-            </button>
+            {% if active_membership and active_membership.can_manage_menu %}
+              <form method="post" action="{% url 'menu:component_toggle_standalone' c.pk %}">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-secondary" type="submit">Toggle</button>
+              </form>
+              <a class="btn btn-sm btn-outline-primary" href="{% url 'menu:component_edit' c.pk %}">Edit</a>
+              <button class="btn btn-sm btn-outline-danger" type="button"
+                      data-bs-toggle="modal" data-bs-target="#confirmModal"
+                      data-confirm-title="Delete prep item"
+                      data-confirm-body="Delete '{{ c.name }}'? If it's used in a production prep sheet, it can't be deleted yet."
+                      data-confirm-submit="Delete"
+                      data-confirm-post="{% url 'menu:component_delete' c.pk %}">
+                Delete
+              </button>
+            {% endif %}
           </div>
         </div>
       </div>

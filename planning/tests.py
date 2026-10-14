@@ -798,7 +798,7 @@ class RecurringItemsInBuilderTests(TestCase):
         self.assertContains(resp, "Recurring prep items")
         self.assertContains(resp, "Deep Clean")
         # ModelMultipleChoiceField renders selected options with `checked`.
-        self.assertContains(resp, f'id="id_standalone_components_0" checked')
+        self.assertContains(resp, 'id="id_standalone_components_0" checked')
 
     def test_unchecking_recurring_item_turns_it_off_globally(self):
         response = self.client.post(
@@ -1132,3 +1132,87 @@ class CompactClaimedStateControlTests(TestCase):
         self.task.refresh_from_db()
         self.assertEqual(self.task.status, PrepTask.TaskStatus.DONE)
         self.assertIsNotNone(self.task.assignee_id)
+
+    def test_done_task_hides_the_unclaim_control(self):
+        # Regression: the unclaim control used to show for any assigned
+        # task regardless of status, so tapping it on a DONE task silently
+        # un-completed it with no warning.
+        self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        self.client.post(reverse("planning:task_tap", args=[self.task.id]))  # PLANNED -> DONE
+        resp = self.client.get(reverse("planning:plan_sheet", args=[str(self.plan.service_date)]))
+        self.assertNotContains(resp, "assignee-button")
+
+    def test_claim_action_on_a_done_task_is_a_noop(self):
+        # Even a direct POST (bypassing the hidden UI control) must not be
+        # able to unclaim/un-complete a DONE task.
+        self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        self.client.post(reverse("planning:task_tap", args=[self.task.id]))  # PLANNED -> DONE
+        self.task.refresh_from_db()
+        assignee_before = self.task.assignee_id
+
+        self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.status, PrepTask.TaskStatus.DONE)
+        self.assertEqual(self.task.assignee_id, assignee_before)
+
+
+class StateChangingViewsRejectGetTests(TestCase):
+    """
+    Code-review finding: erase_plan_view/reopen_plan_view had no
+    `request.method != "POST"` guard, unlike every sibling action view in
+    this file (complete_plan_view, add_adhoc_tasks_view, ...). Since GET
+    isn't CSRF-protected, a plain link/image hitting these while a team
+    member was logged in could have erased or reopened a plan with no
+    confirmation step at all.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000320", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.plan = services.get_or_create_draft_plan(self.team, datetime.date(2026, 3, 10), self.user)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_erase_plan_rejects_get(self):
+        resp = self.client.get(reverse("planning:plan_erase", args=[str(self.plan.service_date)]))
+        self.assertEqual(resp.status_code, 405)
+        self.assertTrue(PrepPlan.objects.filter(pk=self.plan.pk).exists())
+
+    def test_reopen_plan_rejects_get(self):
+        services.finalize_plan(self.plan, self.user)
+        resp = self.client.get(reverse("planning:plan_reopen", args=[str(self.plan.service_date)]))
+        self.assertEqual(resp.status_code, 405)
+        self.plan.refresh_from_db()
+        self.assertEqual(self.plan.state, PrepPlan.PlanState.PRODUCTION)
+
+
+class TaskActionsOnMissingTaskReturn404Tests(TestCase):
+    """
+    Code-review finding: task_tap/task_claim called PrepTask.objects.get()
+    with no DoesNotExist handling, unlike every other task lookup in this
+    file (task_note_view, remove_adhoc_task_view), which 404 cleanly. A
+    bad/stale task id used to crash with an unhandled 500 instead.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000321", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_tap_on_missing_task_returns_404_not_500(self):
+        resp = self.client.post(reverse("planning:task_tap", args=[999999]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_claim_on_missing_task_returns_404_not_500(self):
+        resp = self.client.post(reverse("planning:task_claim", args=[999999]))
+        self.assertEqual(resp.status_code, 404)

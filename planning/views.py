@@ -8,10 +8,15 @@ from django.utils import timezone
 from django.views.generic import ListView, TemplateView
 
 from accounts.mixins import TeamMemberRequiredMixin
-from menu.models import Component
 from .models import PrepPlan, PrepTask
 from .forms import AdHocTaskFormSet, PlanBuilderForm
-from .selectors import annotate_plan_progress, get_extra_tasks, get_plan_list_queryset, get_sheet_groups
+from .selectors import (
+    annotate_plan_progress,
+    get_eligible_standalone_components,
+    get_extra_tasks,
+    get_plan_list_queryset,
+    get_sheet_groups,
+)
 from . import services
 
 def _parse_date(date_str: str) -> datetime.date:
@@ -100,9 +105,7 @@ class PlanBuilderView(TeamMemberRequiredMixin, TemplateView):
 
         selected_ids = list(plan.plan_dishes.values_list("dish_id", flat=True))
         standalone_ids = list(
-            Component.objects.filter(
-                team=self.request.team, standalone_active=True, dish_components__isnull=True
-            ).values_list("id", flat=True)
+            get_eligible_standalone_components(self.request.team).values_list("id", flat=True)
         )
         form = PlanBuilderForm(
             initial={"dishes": selected_ids, "standalone_components": standalone_ids},
@@ -144,19 +147,11 @@ class PlanBuilderView(TeamMemberRequiredMixin, TemplateView):
 
         dish_ids = [d.id for d in form.cleaned_data["dishes"]]
 
-        # Unchecking a recurring item here is a shortcut for the same
-        # standalone_active toggle in the Prep Items catalog — it's a
-        # can_manage_menu action since it affects every future prep list.
+        # Gated by can_edit_menu since this affects every future prep list,
+        # not just this one — see turn_off_unchecked_standalone_components.
         if request.membership and request.membership.can_edit_menu:
             checked_component_ids = {c.id for c in form.cleaned_data["standalone_components"]}
-            current_standalone_ids = set(
-                Component.objects.filter(
-                    team=request.team, standalone_active=True, dish_components__isnull=True
-                ).values_list("id", flat=True)
-            )
-            turned_off_ids = current_standalone_ids - checked_component_ids
-            if turned_off_ids:
-                Component.objects.filter(id__in=turned_off_ids).update(standalone_active=False)
+            services.turn_off_unchecked_standalone_components(request.team, checked_component_ids)
 
         try:
             services.set_plandishes(plan, dish_ids)
@@ -195,6 +190,8 @@ def complete_plan_view(request, date_str: str):
 
 @login_required
 def erase_plan_view(request, date_str: str):
+    if request.method != "POST":
+        return HttpResponse(status=405)
     redirect_response = _require_active_team(request)
     if redirect_response:
         return redirect_response
@@ -208,6 +205,8 @@ def erase_plan_view(request, date_str: str):
 
 @login_required
 def reopen_plan_view(request, date_str: str):
+    if request.method != "POST":
+        return HttpResponse(status=405)
     redirect_response = _require_active_team(request)
     if redirect_response:
         return redirect_response
@@ -231,6 +230,8 @@ def task_tap_view(request, pk: int):
         task = services.task_tap(pk, request.user)
     except PermissionError:
         return HttpResponse(status=403)
+    except PrepTask.DoesNotExist:
+        return HttpResponse(status=404)
     _hydrate_plan_progress(task.plan)
     return render(
         request,
@@ -246,6 +247,8 @@ def task_claim_view(request, pk: int):
         task = services.task_claim(pk, request.user)
     except PermissionError:
         return HttpResponse(status=403)
+    except PrepTask.DoesNotExist:
+        return HttpResponse(status=404)
     _hydrate_plan_progress(task.plan)
     return render(
         request,

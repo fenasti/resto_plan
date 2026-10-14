@@ -137,6 +137,66 @@ class TeamPermissionRequiredDecoratorTests(TestCase):
         self.dish.refresh_from_db()
         self.assertFalse(self.dish.is_active)
 
+    def test_toggle_rejects_get(self):
+        # Code-review finding: toggle_dish_active had no POST guard, unlike
+        # its structural twin toggle_standalone_active.
+        membership = TeamMembership.objects.get(user=self.user, team=self.team)
+        membership.can_manage_menu = True
+        membership.save()
+
+        response = self.client.get(reverse("menu:dish_toggle_active", args=[self.dish.pk]))
+        self.assertEqual(response.status_code, 405)
+        self.dish.refresh_from_db()
+        self.assertTrue(self.dish.is_active)
+
+
+class ComponentListHidesRestrictedActionsTests(TestCase):
+    """
+    Code-review finding: component_list.html showed Create/Toggle/Edit/
+    Delete unconditionally, unlike the structurally identical
+    dish_list.html/recipe_list.html, which gate those on
+    can_manage_menu/can_manage_recipes. Now consistent with its siblings.
+
+    Note: unlike Dish/RecipeListView (TeamMemberRequiredMixin — open to any
+    member, only the actions are template-gated), ComponentListView itself
+    requires can_manage_menu just to view the list at all
+    (TeamPermissionRequiredMixin), so a restricted member never actually
+    reaches this template today — the button gating is a consistency/
+    defense-in-depth fix, not something currently reachable as a visible
+    bug. Left ComponentListView's own gate as-is since loosening page-level
+    access is a bigger call than fixing template consistency.
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000011", created_by=self.owner)
+        TeamMembership.objects.create(user=self.owner, team=self.team, role=TeamMembership.Role.OWNER)
+        Component.objects.create(team=self.team, name="Broth")
+
+        self.member = User.objects.create_user(username="member", password="x")
+        TeamMembership.objects.create(
+            user=self.member, team=self.team, role=TeamMembership.Role.MEMBER, can_manage_menu=False
+        )
+
+    def test_restricted_member_is_redirected_away_from_the_list(self):
+        self.client.force_login(self.member)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+        resp = self.client.get(reverse("menu:component_list"))
+        self.assertRedirects(resp, reverse("home:index"))
+
+    def test_manager_sees_the_action_buttons(self):
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+        resp = self.client.get(reverse("menu:component_list"))
+        self.assertContains(resp, "Create Prep Item")
+        self.assertContains(resp, ">Toggle<")
+
 
 class MenuFormErrorsVisibleTests(TestCase):
     """

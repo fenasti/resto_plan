@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import datetime
 from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import TeamMembership
 from menu.models import Component, Dish, DishComponent
 from .models import PrepPlan, PlanDish, PrepTask
+from .selectors import get_eligible_standalone_components
 
 def _assert_team_member(user, team) -> None:
     if not TeamMembership.objects.filter(user=user, team=team).exists():
@@ -36,7 +36,6 @@ def set_plandishes(plan: PrepPlan, dish_ids: list[int]) -> None:
         raise ValueError("Cannot edit dishes in PRODUCTION.")
 
     dishes = list(Dish.objects.filter(team=plan.team, id__in=dish_ids).order_by("name"))
-    selected_ids = {d.id for d in dishes}
 
     # Hard reset PlanDish list deterministically
     plan.plan_dishes.all().delete()
@@ -44,9 +43,14 @@ def set_plandishes(plan: PrepPlan, dish_ids: list[int]) -> None:
         [PlanDish(plan=plan, dish=d, order=i+1) for i, d in enumerate(dishes)]
     )
 
-    if dish_ids and len(selected_ids) != len(set(dish_ids)):
-        # duplicates submitted; safe ignore
-        pass
+def turn_off_unchecked_standalone_components(team, checked_ids) -> None:
+    """Unchecking a recurring item in the Builder is a shortcut for the same
+    standalone_active toggle in the Prep Items catalog — it affects every
+    future prep list, not just this one."""
+    current_ids = set(get_eligible_standalone_components(team).values_list("id", flat=True))
+    turned_off_ids = current_ids - set(checked_ids)
+    if turned_off_ids:
+        Component.objects.filter(id__in=turned_off_ids).update(standalone_active=False)
 
 def build_placeholders_hard_reset(plan: PrepPlan) -> None:
     """Syncs PrepTasks to the plan's current dishes/components.
@@ -89,9 +93,7 @@ def build_placeholders_hard_reset(plan: PrepPlan) -> None:
         )
 
     target_component_ids = set(
-        Component.objects.filter(
-            team=plan.team, standalone_active=True, dish_components__isnull=True
-        ).values_list("id", flat=True)
+        get_eligible_standalone_components(plan.team).values_list("id", flat=True)
     )
     existing_component_ids = set(
         plan.tasks.filter(component__isnull=False).values_list("component_id", flat=True)
@@ -204,6 +206,12 @@ def task_claim(task_id: int, user) -> PrepTask:
         raise PermissionError("Not a member of this team.")
 
     if task.plan.state != PrepPlan.PlanState.PRODUCTION:
+        return task
+
+    # Unclaiming a DONE task would silently erase completed work with no
+    # warning — a no-op here, not an error, since the row-tap flow (task_tap)
+    # is the intentional way to walk a task back from DONE to PLANNED first.
+    if task.status == PrepTask.TaskStatus.DONE:
         return task
 
     if task.assignee_id:

@@ -15,7 +15,7 @@ from .forms import (
     MembershipUpdateForm,
     PlatformStaffToggleForm,
 )
-from .mixins import TeamMemberRequiredMixin, ActiveTeamRequiredMixin, PlatformAdminRequiredMixin, TeamPermissionRequiredMixin
+from .mixins import PlatformAdminRequiredMixin, TeamPermissionRequiredMixin
 from .models import CookProfile, Team, TeamMembership
 
 User = get_user_model()

@@ -1,9 +1,18 @@
 from collections import OrderedDict
 from django.db.models import Count, Q
+from menu.models import Component
 from .models import PrepPlan, PrepTask, PlanDish
 
 def get_plan_list_queryset(team):
     return annotate_plan_progress(PrepPlan.objects.filter(team=team)).order_by("-service_date")
+
+def get_eligible_standalone_components(team):
+    """Recurring prep items that aren't tied to any dish — these show up on
+    every plan automatically via build_placeholders_hard_reset, and can be
+    toggled off from the Builder or the Prep Items catalog."""
+    return Component.objects.filter(
+        team=team, standalone_active=True, dish_components__isnull=True
+    ).order_by("name")
 
 def annotate_plan_progress(queryset):
     return queryset.annotate(
@@ -16,16 +25,6 @@ def get_extra_tasks(plan: PrepPlan):
     return (
         PrepTask.objects.filter(plan=plan, dish_component__isnull=True)
         .select_related("component", "recipe", "assignee", "assignee__cookprofile")
-        .order_by("id")
-    )
-
-def get_adhoc_tasks(plan: PrepPlan):
-    """True ad hoc tasks only (manual label or a bare recipe pick) — excludes
-    standalone-component-driven tasks, which aren't removable the same way
-    and have their own toggle in the Builder's "Recurring prep items" list."""
-    return (
-        PrepTask.objects.filter(plan=plan, dish_component__isnull=True, component__isnull=True)
-        .select_related("recipe", "assignee")
         .order_by("id")
     )
 

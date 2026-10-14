@@ -2,6 +2,7 @@ from django import forms
 from django.forms import formset_factory
 
 from menu.models import Component, Dish, Recipe
+from .selectors import get_eligible_standalone_components
 
 
 class PlanBuilderForm(forms.Form):
@@ -20,9 +21,7 @@ class PlanBuilderForm(forms.Form):
         super().__init__(*args, **kwargs)
         if team is not None:
             self.fields["dishes"].queryset = Dish.objects.filter(team=team).order_by("name")
-            self.fields["standalone_components"].queryset = Component.objects.filter(
-                team=team, standalone_active=True, dish_components__isnull=True
-            ).order_by("name")
+            self.fields["standalone_components"].queryset = get_eligible_standalone_components(team)
 
 
 class AdHocTaskForm(forms.Form):

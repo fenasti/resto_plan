@@ -24,6 +24,10 @@ class HomeView(LoginRequiredMixin, TemplateView):
         team = self.request.team
         today = timezone.localdate()
 
+        # Prefer the nearest upcoming draft (the one you're most likely still
+        # building), then any upcoming plan regardless of state, then just
+        # the most recent plan overall so the dashboard always has something
+        # to show once at least one plan exists.
         prep_queryset = annotate_plan_progress(PrepPlan.objects.filter(team=team))
         active_prep = (
             prep_queryset.filter(

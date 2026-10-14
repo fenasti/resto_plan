@@ -209,11 +209,14 @@ class ComponentListView(TeamPermissionRequiredMixin, SearchablePaginatedListMixi
 class ComponentCreateView(TeamPermissionRequiredMixin, CreateView):
     required_flag = "can_manage_menu"
     model = Component
+    form_class = ComponentForm
     template_name = "menu/component_form.html"
     success_url = reverse_lazy("menu:component_list")
 
-    def get_form(self, form_class=None):
-        return ComponentForm(self.request.POST or None, team=self.request.team)
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["team"] = self.request.team
+        return kwargs
 
     def form_valid(self, form):
         obj = form.save(commit=False)
@@ -224,14 +227,17 @@ class ComponentCreateView(TeamPermissionRequiredMixin, CreateView):
 class ComponentUpdateView(TeamPermissionRequiredMixin, UpdateView):
     required_flag = "can_manage_menu"
     model = Component
+    form_class = ComponentForm
     template_name = "menu/component_form.html"
     success_url = reverse_lazy("menu:component_list")
 
     def get_queryset(self):
         return Component.objects.filter(team=self.request.team)
 
-    def get_form(self, form_class=None):
-        return ComponentForm(self.request.POST or None, instance=self.get_object(), team=self.request.team)
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["team"] = self.request.team
+        return kwargs
 
 class ComponentDeleteView(TeamPermissionRequiredMixin, DeleteView):
     required_flag = "can_manage_menu"
@@ -285,6 +291,8 @@ class ComponentDeleteView(TeamPermissionRequiredMixin, DeleteView):
 @login_required
 @team_permission_required("can_manage_menu")
 def toggle_dish_active(request, pk: int):
+    if request.method != "POST":
+        return HttpResponse(status=405)
     dish = get_object_or_404(Dish, pk=pk, team=request.team)
     dish.is_active = not dish.is_active
     dish.save(update_fields=["is_active"])

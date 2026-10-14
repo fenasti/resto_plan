@@ -29,6 +29,11 @@ class PrepPlan(models.Model):
     def __str__(self):
         return f"{self.team.name} {self.service_date} ({self.state})"
 
+    # Two different cache sources feed these, both to avoid an extra COUNT
+    # query per plan: `_task_total`/`_task_done` are set by
+    # _hydrate_plan_progress() (single-plan views), `task_total_count`/
+    # `task_done_count` by selectors.annotate_plan_progress() (list views,
+    # via a queryset annotation). Falls back to a live count if neither ran.
     @property
     def task_total(self) -> int:
         if hasattr(self, "_task_total"):

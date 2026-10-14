@@ -38,14 +38,17 @@
     </div>
 
     <div class="task-main-right">
-      {% if plan.state == "PRODUCTION" and task.assignee %}
+      {% if plan.state == "PRODUCTION" and task.assignee and task.status != "DONE" %}
         {% comment %}
           Claimed: this small text button is the only way to unclaim — kept
           deliberately small and plain-text (the photo now lives next to the
           task name instead, see task-main-left) instead of a big "Unclaim"
           button sitting right where a thumb lands trying to tap the rest of
           the row to advance the task, which was re-triggering an accidental
-          unclaim.
+          unclaim. Hidden once DONE so tapping it can't silently un-complete
+          a finished task — tap the row itself to walk it back to PLANNED
+          first (task_tap already does this), which brings the unclaim
+          control back.
         {% endcomment %}
         <button class="btn btn-sm btn-outline-warning task-control assignee-button"
                 hx-post="{% url 'planning:task_claim' task.id %}"

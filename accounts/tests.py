@@ -63,7 +63,7 @@ class TeamJoinRateLimitTests(TestCase):
 
         other_user = User.objects.create_user(username="another_cook", password="x")
         self.client.force_login(other_user)
-        resp = self.client.post(reverse("accounts:team_join"), {"join_code": "123456"})
+        self.client.post(reverse("accounts:team_join"), {"join_code": "123456"})
         self.assertTrue(TeamMembership.objects.filter(user=other_user, team=self.team).exists())
 
 
