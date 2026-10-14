@@ -7,7 +7,7 @@ from django.urls import reverse
 from openpyxl import load_workbook
 
 from accounts.models import Team, TeamMembership
-from ordering.models import OrderList, OrderListItem, PurchaseItem
+from ordering.models import OrderList, OrderListItem, PurchaseCategory, PurchaseItem, Supplier
 from ordering import services
 
 User = get_user_model()
@@ -26,7 +26,8 @@ class OrderDetailMobileTouchUsabilityTests(TestCase):
         self.team = Team.objects.create(name="Kitchen", join_code="000200", created_by=self.user)
         TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
 
-        self.purchase_item = PurchaseItem.objects.create(team=self.team, name="Onions", category="Produce")
+        self.category = PurchaseCategory.objects.create(team=self.team, name="Produce")
+        self.purchase_item = PurchaseItem.objects.create(team=self.team, name="Onions", category=self.category)
         self.order, _ = services.get_or_create_order(
             self.team, datetime.date(2026, 3, 1), self.user, blank=True
         )
@@ -144,7 +145,8 @@ class CloneOrderResetsQuantitiesTests(TestCase):
         self.team = Team.objects.create(name="Kitchen", join_code="000230", created_by=self.user)
         TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
 
-        self.onions = PurchaseItem.objects.create(team=self.team, name="Onions", category="Produce")
+        self.category = PurchaseCategory.objects.create(team=self.team, name="Produce")
+        self.onions = PurchaseItem.objects.create(team=self.team, name="Onions", category=self.category)
         self.source_order, _ = services.get_or_create_order(
             self.team, datetime.date(2026, 4, 1), self.user, blank=True
         )
@@ -186,11 +188,16 @@ class SupplierExportTests(TestCase):
         self.team = Team.objects.create(name="Kitchen", join_code="000231", created_by=self.user)
         TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
 
+        self.produce_category = PurchaseCategory.objects.create(team=self.team, name="Produce")
+        self.protein_category = PurchaseCategory.objects.create(team=self.team, name="Protein")
+        self.jims_produce = Supplier.objects.create(team=self.team, name="Jim's Produce")
+        self.city_meats = Supplier.objects.create(team=self.team, name="City Meats")
+
         self.produce_item = PurchaseItem.objects.create(
-            team=self.team, name="Onions", category="Produce", supplier="Jim's Produce"
+            team=self.team, name="Onions", category=self.produce_category, supplier=self.jims_produce
         )
         self.meat_item = PurchaseItem.objects.create(
-            team=self.team, name="Chicken", category="Protein", supplier="City Meats"
+            team=self.team, name="Chicken", category=self.protein_category, supplier=self.city_meats
         )
         self.unassigned_item = PurchaseItem.objects.create(team=self.team, name="Napkins")
 
@@ -241,3 +248,222 @@ class SupplierExportTests(TestCase):
         resp = self.client.get(reverse("ordering:order_export", args=[str(single_order.order_date)]))
         wb = load_workbook(io.BytesIO(resp.content))
         self.assertEqual(wb.sheetnames, ["Jim's Produce"])
+
+
+class OrderingSetupTests(TestCase):
+    """Create/delete for Suppliers and Categories — the entities the
+    supplier-first Add Item flow and the per-supplier export are organized
+    around. Deleting one unassigns it from items (SET_NULL) rather than
+    being blocked or cascading."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000240", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_create_supplier(self):
+        resp = self.client.post(reverse("ordering:ordering_setup"), {
+            "action": "add_supplier", "name": "Jim's Produce",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(Supplier.objects.filter(team=self.team, name="Jim's Produce").exists())
+
+    def test_create_duplicate_supplier_case_insensitive_shows_error_not_duplicate(self):
+        Supplier.objects.create(team=self.team, name="Jim's Produce")
+        resp = self.client.post(reverse("ordering:ordering_setup"), {
+            "action": "add_supplier", "name": "jim's produce",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "already exists")
+        self.assertEqual(Supplier.objects.filter(team=self.team).count(), 1)
+
+    def test_delete_supplier_unassigns_rather_than_blocks(self):
+        supplier = Supplier.objects.create(team=self.team, name="Jim's Produce")
+        item = PurchaseItem.objects.create(team=self.team, name="Onions", supplier=supplier)
+
+        resp = self.client.post(reverse("ordering:ordering_setup"), {
+            "action": "delete_supplier", "supplier_id": supplier.id,
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(Supplier.objects.filter(id=supplier.id).exists())
+        item.refresh_from_db()
+        self.assertIsNone(item.supplier_id)
+
+    def test_create_category(self):
+        resp = self.client.post(reverse("ordering:ordering_setup"), {
+            "action": "add_category", "name": "Produce",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(PurchaseCategory.objects.filter(team=self.team, name="Produce").exists())
+
+    def test_delete_category_unassigns_rather_than_blocks(self):
+        category = PurchaseCategory.objects.create(team=self.team, name="Produce")
+        item = PurchaseItem.objects.create(team=self.team, name="Onions", category=category)
+
+        resp = self.client.post(reverse("ordering:ordering_setup"), {
+            "action": "delete_category", "category_id": category.id,
+        })
+        self.assertEqual(resp.status_code, 302)
+        item.refresh_from_db()
+        self.assertIsNone(item.category_id)
+
+    def test_setup_page_lists_existing_suppliers_and_categories(self):
+        Supplier.objects.create(team=self.team, name="Jim's Produce")
+        PurchaseCategory.objects.create(team=self.team, name="Produce")
+        resp = self.client.get(reverse("ordering:ordering_setup"))
+        self.assertContains(resp, "Jim&#x27;s Produce")
+        self.assertContains(resp, "Produce")
+
+
+class CreateNewItemAttachesSupplierTests(TestCase):
+    """
+    Regression: the "Create New Catalog Item" form used to accept a
+    supplier but silently never save it — create_purchase_item_and_add_to_
+    order never read it from cleaned_data. Matters a lot for the new
+    supplier-scoped Add Item flow specifically: Step 2 locks the form's
+    supplier to whichever one you picked in Step 1, so if this plumbing
+    gap weren't fixed, every item created there would still land
+    unassigned despite looking scoped.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000241", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.supplier = Supplier.objects.create(team=self.team, name="Jim's Produce")
+        self.category = PurchaseCategory.objects.create(team=self.team, name="Produce")
+        self.order, _ = services.get_or_create_order(
+            self.team, datetime.date(2026, 5, 1), self.user, blank=True
+        )
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_created_item_is_attached_to_the_selected_supplier(self):
+        url = reverse("ordering:order_detail", args=[str(self.order.order_date)]) + f"?supplier={self.supplier.id}"
+        resp = self.client.post(url, {
+            "action": "add_new",
+            "name": "Onions",
+            "category": self.category.id,
+            "default_unit": "kg",
+        })
+        self.assertEqual(resp.status_code, 302)
+        item = PurchaseItem.objects.get(team=self.team, name="Onions")
+        self.assertEqual(item.supplier_id, self.supplier.id)
+        self.assertEqual(item.category_id, self.category.id)
+
+
+class SupplierFirstAddItemFlowTests(TestCase):
+    """
+    Regression for the core UX complaint: Add Item used to show one flat
+    dropdown mixing every supplier's items together with no guidance. Now
+    it's two steps — pick a supplier first, then a form scoped to that
+    supplier — and the choice must survive redirects/re-renders so adding
+    several items doesn't mean re-picking the supplier every time.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000242", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.jims = Supplier.objects.create(team=self.team, name="Jim's Produce")
+        self.citymeats = Supplier.objects.create(team=self.team, name="City Meats")
+        self.onions = PurchaseItem.objects.create(team=self.team, name="Onions", supplier=self.jims)
+        self.chicken = PurchaseItem.objects.create(team=self.team, name="Chicken", supplier=self.citymeats)
+
+        self.order, _ = services.get_or_create_order(
+            self.team, datetime.date(2026, 5, 2), self.user, blank=True
+        )
+        self.detail_url = reverse("ordering:order_detail", args=[str(self.order.order_date)])
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_no_supplier_param_shows_the_picker_not_a_blind_form(self):
+        resp = self.client.get(self.detail_url)
+        self.assertContains(resp, "Jim&#x27;s Produce")
+        self.assertContains(resp, "City Meats")
+        self.assertNotContains(resp, 'value="add_existing"')
+        self.assertNotContains(resp, 'value="add_new"')
+
+    def test_zero_suppliers_shows_a_link_to_setup_not_a_blind_form(self):
+        self.jims.delete()
+        self.citymeats.delete()
+        resp = self.client.get(self.detail_url)
+        self.assertContains(resp, reverse("ordering:ordering_setup"))
+        self.assertNotContains(resp, 'value="add_existing"')
+
+    def test_supplier_param_scopes_the_existing_item_dropdown(self):
+        resp = self.client.get(self.detail_url + f"?supplier={self.jims.id}")
+        content = resp.content.decode()
+        self.assertIn("Onions", content)
+        # The dropdown's <option> for Chicken shouldn't appear, though the
+        # name could theoretically appear elsewhere — scope the check to
+        # the actual <select> options via the form's queryset instead.
+        self.assertNotIn(
+            str(self.chicken.id),
+            [str(o.pk) for o in resp.context["add_existing_form"].fields["purchase_item"].queryset],
+        )
+
+    def test_add_existing_without_a_supplier_selected_is_rejected(self):
+        resp = self.client.post(self.detail_url, {"action": "add_existing", "purchase_item": self.onions.id})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, self.detail_url)
+        self.assertFalse(OrderListItem.objects.filter(order_list=self.order).exists())
+
+    def test_successful_add_redirect_preserves_the_supplier_param(self):
+        url = self.detail_url + f"?supplier={self.jims.id}"
+        resp = self.client.post(url, {"action": "add_existing", "purchase_item": self.onions.id})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, url)
+
+    def test_failed_create_rerender_keeps_the_selected_supplier_context(self):
+        url = self.detail_url + f"?supplier={self.jims.id}"
+        # Empty name fails QuickCreatePurchaseItemForm validation.
+        resp = self.client.post(url, {"action": "add_new", "name": "", "category": "", "default_unit": ""})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Jim&#x27;s Produce")
+
+
+class OrderTableGroupedBySupplierTests(TestCase):
+    """The on-screen Order Table now groups by supplier first, then
+    category — matching export_order_excel's per-supplier-sheet structure
+    exactly, so what you see while building the list is what each vendor
+    gets sent."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000243", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        self.jims = Supplier.objects.create(team=self.team, name="Jim's Produce")
+        self.produce = PurchaseCategory.objects.create(team=self.team, name="Produce")
+        self.onions = PurchaseItem.objects.create(
+            team=self.team, name="Onions", supplier=self.jims, category=self.produce
+        )
+
+        self.order, _ = services.get_or_create_order(
+            self.team, datetime.date(2026, 5, 3), self.user, blank=True
+        )
+        OrderListItem.objects.create(order_list=self.order, purchase_item=self.onions, sort_order=1)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_table_shows_supplier_section_header(self):
+        resp = self.client.get(reverse("ordering:order_detail", args=[str(self.order.order_date)]))
+        self.assertContains(resp, "order-supplier-header")
+        self.assertContains(resp, "Jim&#x27;s Produce")

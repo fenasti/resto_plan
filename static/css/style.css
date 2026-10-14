@@ -158,6 +158,18 @@ a, button, .btn, [role="button"] {
   height: 0.9rem;
 }
 
+.order-supplier-section + .order-supplier-section {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.order-supplier-header {
+  font-weight: 700;
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
 .order-category-section + .order-category-section {
   margin-top: 1.5rem;
 }

@@ -4,12 +4,42 @@ from django.db import models
 from accounts.models import Team
 
 
+class Supplier(models.Model):
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="suppliers")
+    name = models.CharField(max_length=150)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["team", "name"], name="uniq_team_supplier_name")
+        ]
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class PurchaseCategory(models.Model):
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="purchase_categories")
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["team", "name"], name="uniq_team_purchase_category_name")
+        ]
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class PurchaseItem(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="purchase_items")
     name = models.CharField(max_length=200)
-    category = models.CharField(max_length=100, blank=True)
-    supplier = models.CharField(
-        max_length=150, blank=True,
+    category = models.ForeignKey(
+        PurchaseCategory, null=True, blank=True, on_delete=models.SET_NULL, related_name="purchase_items"
+    )
+    supplier = models.ForeignKey(
+        Supplier, null=True, blank=True, on_delete=models.SET_NULL, related_name="purchase_items",
         help_text="Who you buy this from — lets an order be split and exported per supplier.",
     )
     default_unit = models.CharField(max_length=50, blank=True)
@@ -25,11 +55,11 @@ class PurchaseItem(models.Model):
 
     @property
     def display_category(self) -> str:
-        return self.category or "Other"
+        return self.category.name if self.category else "Other"
 
     @property
     def display_supplier(self) -> str:
-        return self.supplier or "No Supplier Set"
+        return self.supplier.name if self.supplier else "No Supplier Set"
 
     def __str__(self):
         return f"{self.name} ({self.team.name})"

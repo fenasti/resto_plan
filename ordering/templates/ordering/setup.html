@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container prep-shell py-3 py-md-4">
+  <a class="btn btn-outline-secondary btn-back mb-2" href="{% url 'ordering:order_list' %}">
+    <i class="bi bi-arrow-left"></i> Orders
+  </a>
+
+  <div class="prep-header">
+    <div>
+      <h2>Ordering Setup</h2>
+      <p class="text-muted mb-0">Suppliers and categories — created once, then reused everywhere you add an item.</p>
+    </div>
+    <div class="prep-actions">
+      <a class="btn btn-outline-secondary prep-header-action" href="{% url 'ordering:purchase_item_list' %}">Purchase Item Catalog</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-12 col-lg-6">
+      <div class="card prep-card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="mb-1">Suppliers</h5>
+          <p class="text-muted mb-3">Who you buy from — picking one is the first step when adding an item to an order.</p>
+
+          <form method="post" class="d-flex gap-2 mb-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_supplier">
+            {{ supplier_form.name }}
+            <button class="btn btn-primary text-nowrap" type="submit">Add</button>
+          </form>
+          {% for error in supplier_form.name.errors %}
+            <div class="text-danger small mb-3 mt-n2">{{ error }}</div>
+          {% endfor %}
+
+          {% for s in suppliers %}
+            <div class="d-flex justify-content-between align-items-center py-2 {% if not forloop.last %}border-bottom{% endif %}">
+              <span>{{ s.name }}</span>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_supplier">
+                <input type="hidden" name="supplier_id" value="{{ s.id }}">
+                <button class="btn btn-sm btn-outline-danger" type="submit">Remove</button>
+              </form>
+            </div>
+          {% empty %}
+            <p class="text-muted mb-0">No suppliers yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card prep-card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="mb-1">Categories</h5>
+          <p class="text-muted mb-3">How items are grouped within a supplier's section (e.g. Produce, Dairy, Dry Goods).</p>
+
+          <form method="post" class="d-flex gap-2 mb-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_category">
+            {{ category_form.name }}
+            <button class="btn btn-primary text-nowrap" type="submit">Add</button>
+          </form>
+          {% for error in category_form.name.errors %}
+            <div class="text-danger small mb-3 mt-n2">{{ error }}</div>
+          {% endfor %}
+
+          {% for c in categories %}
+            <div class="d-flex justify-content-between align-items-center py-2 {% if not forloop.last %}border-bottom{% endif %}">
+              <span>{{ c.name }}</span>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_category">
+                <input type="hidden" name="category_id" value="{{ c.id }}">
+                <button class="btn btn-sm btn-outline-danger" type="submit">Remove</button>
+              </form>
+            </div>
+          {% empty %}
+            <p class="text-muted mb-0">No categories yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

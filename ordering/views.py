@@ -4,13 +4,21 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
-from django.views.generic import ListView, TemplateView
+from django.views.generic import ListView, TemplateView, UpdateView
 
-from accounts.mixins import TeamMemberRequiredMixin
+from accounts.mixins import SearchablePaginatedListMixin, TeamMemberRequiredMixin
 
-from .forms import AddExistingOrderItemForm, OrderItemFormSet, QuickCreatePurchaseItemForm
-from .models import OrderList
+from .forms import (
+    AddExistingOrderItemForm,
+    OrderItemFormSet,
+    PurchaseCategoryForm,
+    PurchaseItemEditForm,
+    QuickCreatePurchaseItemForm,
+    SupplierForm,
+)
+from .models import OrderList, PurchaseCategory, PurchaseItem, Supplier
 from .selectors import build_grouped_order_rows, get_order_item_queryset, get_order_list_queryset
 from . import services
 
@@ -96,7 +104,102 @@ class OrderListView(TeamMemberRequiredMixin, ListView):
         return get_order_list_queryset(self.request.team)
 
 
+class OrderingSetupView(TeamMemberRequiredMixin, TemplateView):
+    """Manage Suppliers and Categories — the entities the supplier-first Add
+    Item flow and the per-supplier Excel export are organized around.
+    Delete is SET_NULL (unassigns from items) rather than blocked/cascaded,
+    and there's no rename for v1 — delete + recreate covers typos."""
+
+    template_name = "ordering/setup.html"
+
+    def _build_context(self, supplier_form=None, category_form=None):
+        return {
+            "suppliers": Supplier.objects.filter(team=self.request.team),
+            "categories": PurchaseCategory.objects.filter(team=self.request.team),
+            "supplier_form": supplier_form or SupplierForm(team=self.request.team),
+            "category_form": category_form or PurchaseCategoryForm(team=self.request.team),
+        }
+
+    def get(self, request, *args, **kwargs):
+        return render(request, self.template_name, self._build_context())
+
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get("action")
+
+        if action == "add_supplier":
+            form = SupplierForm(request.POST, team=request.team)
+            if form.is_valid():
+                supplier = form.save(commit=False)
+                supplier.team = request.team
+                supplier.save()
+                messages.success(request, f"Added supplier: {supplier.name}")
+                return redirect("ordering:ordering_setup")
+            return render(request, self.template_name, self._build_context(supplier_form=form))
+
+        if action == "delete_supplier":
+            Supplier.objects.filter(team=request.team, id=request.POST.get("supplier_id")).delete()
+            messages.success(request, "Supplier removed.")
+            return redirect("ordering:ordering_setup")
+
+        if action == "add_category":
+            form = PurchaseCategoryForm(request.POST, team=request.team)
+            if form.is_valid():
+                category = form.save(commit=False)
+                category.team = request.team
+                category.save()
+                messages.success(request, f"Added category: {category.name}")
+                return redirect("ordering:ordering_setup")
+            return render(request, self.template_name, self._build_context(category_form=form))
+
+        if action == "delete_category":
+            PurchaseCategory.objects.filter(team=request.team, id=request.POST.get("category_id")).delete()
+            messages.success(request, "Category removed.")
+            return redirect("ordering:ordering_setup")
+
+        return redirect("ordering:ordering_setup")
+
+
+class PurchaseItemListView(TeamMemberRequiredMixin, SearchablePaginatedListMixin, ListView):
+    """Only way (besides Django admin) to re-categorize or re-assign a
+    supplier on an item after it's been created."""
+
+    model = PurchaseItem
+    template_name = "ordering/purchase_item_list.html"
+    context_object_name = "purchase_items"
+    search_fields = ["name"]
+
+    def get_base_queryset(self):
+        return (
+            PurchaseItem.objects.filter(team=self.request.team)
+            .select_related("category", "supplier")
+            .order_by("category", "sort_order", "name")
+        )
+
+
+class PurchaseItemUpdateView(TeamMemberRequiredMixin, UpdateView):
+    model = PurchaseItem
+    template_name = "ordering/purchase_item_form.html"
+    success_url = reverse_lazy("ordering:purchase_item_list")
+
+    def get_queryset(self):
+        return PurchaseItem.objects.filter(team=self.request.team)
+
+    def get_form(self, form_class=None):
+        return PurchaseItemEditForm(
+            self.request.POST or None, instance=self.get_object(), team=self.request.team
+        )
+
+
 class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
+    """
+    Adding items is supplier-first: Step 1 (no `?supplier=`) shows a picker
+    of the team's suppliers instead of a blind, unscoped "add anything"
+    form. Step 2 (`?supplier=<id>`) scopes both the existing-item dropdown
+    and the quick-create form to that supplier. The param is threaded
+    through every redirect/re-render in post() so adding several items in a
+    row doesn't force re-picking the supplier each time.
+    """
+
     template_name = "ordering/order_detail.html"
 
     def _get_order(self):
@@ -105,6 +208,18 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
             team=self.request.team,
             order_date=_parse_date(self.kwargs["date_str"]),
         )
+
+    def _get_selected_supplier(self, request):
+        supplier_id = request.GET.get("supplier")
+        if not supplier_id:
+            return None
+        return Supplier.objects.filter(team=request.team, id=supplier_id).first()
+
+    def _detail_url(self, order, selected_supplier=None):
+        url = reverse("ordering:order_detail", args=[str(order.order_date)])
+        if selected_supplier:
+            url += f"?supplier={selected_supplier.id}"
+        return url
 
     def _get_formset(self, order, data=None):
         return OrderItemFormSet(
@@ -119,31 +234,41 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
         formset=None,
         add_existing_form=None,
         create_item_form=None,
+        selected_supplier=None,
     ):
         formset = formset or self._get_formset(order)
-        add_existing_form = add_existing_form or AddExistingOrderItemForm(team=self.request.team)
-        create_item_form = create_item_form or QuickCreatePurchaseItemForm(team=self.request.team)
+        if selected_supplier and add_existing_form is None:
+            add_existing_form = AddExistingOrderItemForm(team=self.request.team, supplier=selected_supplier)
+        if selected_supplier and create_item_form is None:
+            create_item_form = QuickCreatePurchaseItemForm(team=self.request.team)
 
         return {
             "order": order,
             "formset": formset,
             "groups": build_grouped_order_rows(formset),
+            "suppliers": Supplier.objects.filter(team=self.request.team),
+            "selected_supplier": selected_supplier,
             "add_existing_form": add_existing_form,
             "create_item_form": create_item_form,
         }
 
     def get(self, request, *args, **kwargs):
         order = self._get_order()
-        return render(request, self.template_name, self._build_context(order=order))
+        selected_supplier = self._get_selected_supplier(request)
+        return render(
+            request, self.template_name,
+            self._build_context(order=order, selected_supplier=selected_supplier),
+        )
 
     def post(self, request, *args, **kwargs):
         order = self._get_order()
         action = request.POST.get("action", "save")
+        selected_supplier = self._get_selected_supplier(request)
 
         if action == "reopen":
             services.reopen_order(order)
             messages.success(request, "Order list reopened for editing.")
-            return redirect("ordering:order_detail", date_str=str(order.order_date))
+            return redirect(self._detail_url(order, selected_supplier))
 
         if action == "erase":
             try:
@@ -152,7 +277,7 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
                 return redirect("ordering:order_list")
             except (ValueError, PermissionError) as exc:
                 messages.error(request, str(exc))
-                return redirect("ordering:order_detail", date_str=str(order.order_date))
+                return redirect(self._detail_url(order, selected_supplier))
 
         if action == "remove_item":
             item_id = int(request.POST.get("item_id", "0"))
@@ -161,10 +286,16 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
                 messages.success(request, "Item removed from the order list.")
             except (ValueError, PermissionError) as exc:
                 messages.error(request, str(exc))
-            return redirect("ordering:order_detail", date_str=str(order.order_date))
+            return redirect(self._detail_url(order, selected_supplier))
+
+        if action in {"add_existing", "add_new"} and selected_supplier is None:
+            messages.error(request, "Pick a supplier first.")
+            return redirect(self._detail_url(order))
 
         if action == "add_existing":
-            add_existing_form = AddExistingOrderItemForm(request.POST, team=request.team)
+            add_existing_form = AddExistingOrderItemForm(
+                request.POST, team=request.team, supplier=selected_supplier
+            )
             if add_existing_form.is_valid():
                 purchase_item = add_existing_form.cleaned_data["purchase_item"]
                 try:
@@ -173,7 +304,7 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
                         messages.success(request, f"Added {purchase_item.name} to the order list.")
                     else:
                         messages.info(request, f"{purchase_item.name} is already on this order list.")
-                    return redirect("ordering:order_detail", date_str=str(order.order_date))
+                    return redirect(self._detail_url(order, selected_supplier))
                 except (ValueError, PermissionError) as exc:
                     messages.error(request, str(exc))
             create_item_form = QuickCreatePurchaseItemForm(team=request.team)
@@ -184,6 +315,7 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
                     order=order,
                     add_existing_form=add_existing_form,
                     create_item_form=create_item_form,
+                    selected_supplier=selected_supplier,
                 ),
             )
 
@@ -195,14 +327,15 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
                         order,
                         name=create_item_form.cleaned_data["name"],
                         category=create_item_form.cleaned_data["category"],
+                        supplier=selected_supplier,
                         default_unit=create_item_form.cleaned_data["default_unit"],
                         user=request.user,
                     )
                     messages.success(request, f"Created and added {purchase_item.name}.")
-                    return redirect("ordering:order_detail", date_str=str(order.order_date))
+                    return redirect(self._detail_url(order, selected_supplier))
                 except (ValueError, PermissionError) as exc:
                     messages.error(request, str(exc))
-            add_existing_form = AddExistingOrderItemForm(team=request.team)
+            add_existing_form = AddExistingOrderItemForm(team=request.team, supplier=selected_supplier)
             return render(
                 request,
                 self.template_name,
@@ -210,12 +343,13 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
                     order=order,
                     add_existing_form=add_existing_form,
                     create_item_form=create_item_form,
+                    selected_supplier=selected_supplier,
                 ),
             )
 
         if action in {"save", "finalize"} and order.state != OrderList.OrderState.DRAFT:
             messages.error(request, "Cannot edit a finalized order list until it is reopened.")
-            return redirect("ordering:order_detail", date_str=str(order.order_date))
+            return redirect(self._detail_url(order, selected_supplier))
 
         formset = self._get_formset(order, data=request.POST)
         if not formset.is_valid():
@@ -223,7 +357,7 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
             return render(
                 request,
                 self.template_name,
-                self._build_context(order=order, formset=formset),
+                self._build_context(order=order, formset=formset, selected_supplier=selected_supplier),
             )
 
         formset.save()
@@ -234,7 +368,7 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
         else:
             messages.success(request, "Order list draft saved.")
 
-        return redirect("ordering:order_detail", date_str=str(order.order_date))
+        return redirect(self._detail_url(order, selected_supplier))
 
 
 _EXCEL_SHEET_INVALID_CHARS = str.maketrans("", "", "[]:*?/\\")

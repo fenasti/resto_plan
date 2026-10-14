@@ -111,7 +111,8 @@ def create_purchase_item_and_add_to_order(
     order: OrderList,
     *,
     name: str,
-    category: str,
+    category=None,
+    supplier=None,
     default_unit: str,
     user,
 ):
@@ -123,6 +124,7 @@ def create_purchase_item_and_add_to_order(
         team=order.team,
         name=name,
         category=category,
+        supplier=supplier,
         default_unit=default_unit,
         sort_order=_next_purchase_item_sort(order.team),
     )
