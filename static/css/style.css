@@ -218,6 +218,9 @@ a, button, .btn, [role="button"] {
 
 .order-row-action .btn {
   width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @media (max-width: 991.98px) {
@@ -526,6 +529,9 @@ a, button, .btn, [role="button"] {
   .task-note-form .btn {
     min-height: 44px;
     padding: 0.5rem 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .task-main-right {
@@ -572,6 +578,9 @@ a, button, .btn, [role="button"] {
 
 .task-view-toggle .btn {
   min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 [data-view="cards"] .list-group {
@@ -782,6 +791,46 @@ html[data-bs-theme="light"] .theme-icon-dark { display: inline; }
   --bs-btn-focus-shadow-rgb: 62, 76, 89;
 }
 
+/* The four hex values above were only ever tuned for contrast against a
+   white page — on a dark background (e.g. "Ramen Bowl" as a plain link,
+   or the "Edit" outline button) they read as a barely-visible dark smudge.
+   Dark mode gets its own lighter variant per accent for exactly the two
+   things that use the raw color unfilled: link text, and the
+   outline-primary button's resting (unhovered) text/border — hover/active
+   states already fill solid with that color and switch text to white via
+   Bootstrap's own default, so those stay theme-independent. */
+[data-bs-theme="dark"][data-accent="forest"] {
+  --bs-link-color-rgb: 95, 191, 143; --bs-link-hover-color-rgb: 125, 209, 168;
+}
+[data-bs-theme="dark"][data-accent="forest"] .btn-outline-primary {
+  --bs-btn-color: #5fbf8f; --bs-btn-border-color: #5fbf8f;
+  --bs-btn-disabled-color: #5fbf8f; --bs-btn-disabled-border-color: #5fbf8f;
+}
+
+[data-bs-theme="dark"][data-accent="amber"] {
+  --bs-link-color-rgb: 240, 168, 78; --bs-link-hover-color-rgb: 245, 189, 115;
+}
+[data-bs-theme="dark"][data-accent="amber"] .btn-outline-primary {
+  --bs-btn-color: #f0a84e; --bs-btn-border-color: #f0a84e;
+  --bs-btn-disabled-color: #f0a84e; --bs-btn-disabled-border-color: #f0a84e;
+}
+
+[data-bs-theme="dark"][data-accent="plum"] {
+  --bs-link-color-rgb: 197, 137, 179; --bs-link-hover-color-rgb: 209, 160, 199;
+}
+[data-bs-theme="dark"][data-accent="plum"] .btn-outline-primary {
+  --bs-btn-color: #c589b3; --bs-btn-border-color: #c589b3;
+  --bs-btn-disabled-color: #c589b3; --bs-btn-disabled-border-color: #c589b3;
+}
+
+[data-bs-theme="dark"][data-accent="slate"] {
+  --bs-link-color-rgb: 159, 176, 191; --bs-link-hover-color-rgb: 181, 196, 209;
+}
+[data-bs-theme="dark"][data-accent="slate"] .btn-outline-primary {
+  --bs-btn-color: #9fb0bf; --bs-btn-border-color: #9fb0bf;
+  --bs-btn-disabled-color: #9fb0bf; --bs-btn-disabled-border-color: #9fb0bf;
+}
+
 /* Bigger touch targets for per-row catalog actions (Menu Setup, Prep
    Items, Recipes index rows; the Remove button on a dish's prep item
    list; the "+ Add another row" quick-add button) — same treatment as
@@ -791,6 +840,9 @@ html[data-bs-theme="light"] .theme-icon-dark { display: inline; }
   .dish-component-row .btn,
   .quick-add-actions .btn {
     min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
