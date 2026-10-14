@@ -495,6 +495,17 @@ a, button, .btn, [role="button"] {
   min-height: 48px;
 }
 
+/* Targets .btn specifically, not just direct children — a plain submit
+   button (as opposed to a modal-triggered one) needs a wrapping <form>,
+   which becomes the actual flex child instead of the button itself, so
+   w-100/h-100 on the button alone stretches it without centering its own
+   text inside the taller box. */
+.prep-sticky-actions-inner .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (min-width: 992px) {
   .prep-shell-with-sticky-bar {
     padding-bottom: 0;
