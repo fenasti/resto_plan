@@ -50,6 +50,15 @@ class DishDetailView(TeamMemberRequiredMixin, DetailView):
     def get_queryset(self):
         return Dish.objects.filter(team=self.request.team).prefetch_related("dish_components__component")
 
+class ComponentListView(TeamMemberRequiredMixin, SearchablePaginatedListMixin, ListView):
+    model = Component
+    template_name = "menu/component_list.html"
+    context_object_name = "components"
+    search_fields = ["name"]
+
+    def get_base_queryset(self):
+        return Component.objects.filter(team=self.request.team).order_by("name")
+
 
 # ===== Permissioned CRUD =====
 class RecipeCreateView(TeamPermissionRequiredMixin, CreateView):
@@ -195,16 +204,6 @@ def _refresh_draft_plans_for_dish(dish: Dish) -> int:
         planning_services.build_placeholders_hard_reset(plan)
     return draft_plans.count()
 
-
-class ComponentListView(TeamPermissionRequiredMixin, SearchablePaginatedListMixin, ListView):
-    required_flag = "can_manage_menu"
-    model = Component
-    template_name = "menu/component_list.html"
-    context_object_name = "components"
-    search_fields = ["name"]
-
-    def get_base_queryset(self):
-        return Component.objects.filter(team=self.request.team).order_by("name")
 
 class ComponentCreateView(TeamPermissionRequiredMixin, CreateView):
     required_flag = "can_manage_menu"

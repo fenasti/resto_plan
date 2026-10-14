@@ -152,19 +152,12 @@ class TeamPermissionRequiredDecoratorTests(TestCase):
 
 class ComponentListHidesRestrictedActionsTests(TestCase):
     """
-    Code-review finding: component_list.html showed Create/Toggle/Edit/
-    Delete unconditionally, unlike the structurally identical
-    dish_list.html/recipe_list.html, which gate those on
-    can_manage_menu/can_manage_recipes. Now consistent with its siblings.
-
-    Note: unlike Dish/RecipeListView (TeamMemberRequiredMixin — open to any
-    member, only the actions are template-gated), ComponentListView itself
-    requires can_manage_menu just to view the list at all
-    (TeamPermissionRequiredMixin), so a restricted member never actually
-    reaches this template today — the button gating is a consistency/
-    defense-in-depth fix, not something currently reachable as a visible
-    bug. Left ComponentListView's own gate as-is since loosening page-level
-    access is a bigger call than fixing template consistency.
+    Code-review finding: ComponentListView required can_manage_menu just to
+    view the Prep Items catalog at all, unlike the structurally identical
+    Dish/RecipeListView (open to any team member, only the actions gated).
+    Now matches its siblings: any member can view the list, and
+    component_list.html gates Create/Toggle/Edit/Delete on can_manage_menu
+    the same way dish_list.html/recipe_list.html already did.
     """
 
     def setUp(self):
@@ -178,14 +171,19 @@ class ComponentListHidesRestrictedActionsTests(TestCase):
             user=self.member, team=self.team, role=TeamMembership.Role.MEMBER, can_manage_menu=False
         )
 
-    def test_restricted_member_is_redirected_away_from_the_list(self):
+    def test_restricted_member_can_view_the_list_without_action_buttons(self):
         self.client.force_login(self.member)
         session = self.client.session
         session["active_team_id"] = self.team.id
         session.save()
 
         resp = self.client.get(reverse("menu:component_list"))
-        self.assertRedirects(resp, reverse("home:index"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Broth")
+        self.assertNotContains(resp, "Create Prep Item")
+        self.assertNotContains(resp, ">Toggle<")
+        self.assertNotContains(resp, ">Edit<")
+        self.assertNotContains(resp, ">Delete<")
 
     def test_manager_sees_the_action_buttons(self):
         self.client.force_login(self.owner)
