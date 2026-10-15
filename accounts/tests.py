@@ -7,7 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 
-from .models import Team, TeamMembership
+from .models import PlatformBootstrap, Team, TeamMembership
 from .views import TeamJoinView
 
 User = get_user_model()
@@ -119,6 +119,53 @@ class AccountsMobileTouchUsabilityTests(TestCase):
         resp = self.client.get(reverse("accounts:profile"))
         self.assertContains(resp, reverse("home:index"))
         self.assertContains(resp, "btn-back")
+
+
+class PlatformBootstrapIsPermanentTests(TestCase):
+    """
+    The first-user-becomes-staff bootstrap used to re-fire any time the
+    current is_staff count hit zero — including via an admin account being
+    deleted outright, not just demoted. Once public signup is open to
+    outside users (the product's stated SaaS direction), that's a real
+    backdoor: delete (or lose access to) the one admin account, and the
+    very next stranger to sign up silently becomes a platform admin.
+
+    The fix makes the bootstrap a true one-time event via a permanent
+    PlatformBootstrap marker row that is never deleted, so it can't be
+    re-armed by any later change in the staff count.
+    """
+
+    def test_first_user_ever_becomes_staff(self):
+        user = User.objects.create_user(username="first", password="x")
+        self.assertTrue(user.is_staff)
+        self.assertTrue(PlatformBootstrap.objects.filter(pk=1).exists())
+
+    def test_second_user_does_not_become_staff(self):
+        User.objects.create_user(username="first", password="x")
+        second = User.objects.create_user(username="second", password="x")
+        self.assertFalse(second.is_staff)
+
+    def test_deleting_the_bootstrapped_admin_does_not_rearm_bootstrap(self):
+        first = User.objects.create_user(username="first", password="x")
+        first.delete()
+        self.assertFalse(User.objects.filter(is_staff=True).exists(), "staff count is genuinely zero now")
+
+        next_signup = User.objects.create_user(username="next_signup", password="x")
+        self.assertFalse(
+            next_signup.is_staff,
+            "a later public signup must not become staff just because the admin count dropped to zero",
+        )
+
+    def test_demoting_the_only_admin_to_zero_also_does_not_rearm_bootstrap(self):
+        # The in-app "can't remove the last admin" guard (PlatformAdminUsersView)
+        # already blocks this specific path, but the bootstrap logic itself
+        # must not depend on that guard existing — belt and suspenders.
+        first = User.objects.create_user(username="first", password="x")
+        first.is_staff = False
+        first.save(update_fields=["is_staff"])
+
+        next_signup = User.objects.create_user(username="next_signup", password="x")
+        self.assertFalse(next_signup.is_staff)
 
 
 class SelfServiceTeamCreationTests(TestCase):

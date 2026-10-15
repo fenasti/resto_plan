@@ -89,3 +89,19 @@ class CookProfile(models.Model):
 
     def __str__(self):
         return self.display_name or self.user.username
+
+
+class PlatformBootstrap(models.Model):
+    """
+    Singleton marker (always pk=1): its mere existence means the one-time
+    "make the very first signup a platform admin" bootstrap has already
+    happened — permanently, regardless of what happens to staff accounts
+    afterward. This row is never deleted by any code path.
+
+    Deliberately not "if no staff exists": that condition re-arms itself
+    any time the staff count later drops back to zero (an admin account
+    gets deleted), which would let any subsequent public signup silently
+    become a platform admin with zero vetting — a real backdoor once
+    signup is open to outside users, not just the original owner.
+    """
+    bootstrapped_at = models.DateTimeField(auto_now_add=True)
