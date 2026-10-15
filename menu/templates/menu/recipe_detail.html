@@ -2,8 +2,8 @@
 {% load menu_extras %}
 {% block content %}
 <div class="container py-4">
-  <a class="btn btn-outline-secondary btn-back mb-2" href="{% url 'menu:recipe_list' %}">
-    <i class="bi bi-arrow-left"></i> Recipes
+  <a class="btn btn-outline-secondary btn-back mb-2" href="{{ back_url }}">
+    <i class="bi bi-arrow-left"></i> {{ back_label }}
   </a>
 
   <div class="d-flex justify-content-between align-items-center">

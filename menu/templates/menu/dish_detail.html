@@ -21,7 +21,7 @@
           <div>
             {{ dc.order }}. {{ dc.component.name }}
             {% if dc.component.recipe_id %}
-              <a class="ms-2 text-decoration-none" href="{% url 'menu:recipe_detail' dc.component.recipe_id %}">
+              <a class="ms-2 text-decoration-none" href="{% url 'menu:recipe_detail' dc.component.recipe_id %}?next={{ request.get_full_path|urlencode }}">
                 <i class="bi bi-journal-text"></i>
               </a>
             {% endif %}

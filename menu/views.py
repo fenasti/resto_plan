@@ -4,7 +4,8 @@ from django.db import transaction
 from django.db.models import Max, ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 
 from accounts.decorators import team_permission_required
@@ -26,12 +27,31 @@ class RecipeListView(TeamMemberRequiredMixin, SearchablePaginatedListMixin, List
         return Recipe.objects.filter(team=self.request.team).order_by("name")
 
 class RecipeDetailView(TeamMemberRequiredMixin, DetailView):
+    """
+    The recipe icon is linked from several places (a prep task row, a
+    dish's component list, the Prep Items catalog) — each passes ?next= so
+    the back button returns to wherever the user actually came from,
+    instead of always bouncing to the generic Recipes list.
+    """
     model = Recipe
     template_name = "menu/recipe_detail.html"
     context_object_name = "recipe"
 
     def get_queryset(self):
         return Recipe.objects.filter(team=self.request.team)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        next_url = self.request.GET.get("next")
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url, allowed_hosts={self.request.get_host()}, require_https=self.request.is_secure()
+        ):
+            ctx["back_url"] = next_url
+            ctx["back_label"] = "Back"
+        else:
+            ctx["back_url"] = reverse("menu:recipe_list")
+            ctx["back_label"] = "Recipes"
+        return ctx
 
 class DishListView(TeamMemberRequiredMixin, SearchablePaginatedListMixin, ListView):
     model = Dish

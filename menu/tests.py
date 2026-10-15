@@ -572,3 +572,60 @@ class MenuMobileTouchUsabilityTests(TestCase):
             resp = self.client.get(reverse(url_name))
             self.assertContains(resp, "catalog-row-actions")
         self.assertFalse(self.component.standalone_active)
+
+
+class RecipeDetailBackLinkTests(TestCase):
+    """
+    The recipe icon is linked from several places (a prep task row, a
+    dish's component list, the Prep Items catalog) — each now passes
+    ?next= so the back button returns to wherever the user actually came
+    from, instead of always bouncing to the generic Recipes list. Reported
+    bug: clicking the recipe from a PRODUCTION prep task had no way back
+    to that same prep list short of the dashboard.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000021", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+        self.recipe = Recipe.objects.create(team=self.team, name="Broth Recipe", ingredients_text="water")
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_safe_next_param_is_used_as_the_back_link(self):
+        next_url = reverse("planning:plan_sheet", args=["2026-09-01"])
+        resp = self.client.get(reverse("menu:recipe_detail", args=[self.recipe.pk]) + f"?next={next_url}")
+        self.assertContains(resp, f'href="{next_url}"')
+        self.assertContains(resp, "Back")
+
+    def test_no_next_param_falls_back_to_recipe_list(self):
+        resp = self.client.get(reverse("menu:recipe_detail", args=[self.recipe.pk]))
+        self.assertContains(resp, f'btn-back mb-2" href="{reverse("menu:recipe_list")}"')
+
+    def test_external_next_param_is_rejected(self):
+        # Open-redirect guard: an absolute, other-host URL must never be
+        # trusted as the back link, even though this is just an <a href>
+        # (not a server-side redirect) — fail safe regardless.
+        resp = self.client.get(
+            reverse("menu:recipe_detail", args=[self.recipe.pk]) + "?next=https://evil.example/"
+        )
+        self.assertNotContains(resp, "evil.example")
+        self.assertContains(resp, reverse("menu:recipe_list"))
+
+    def test_prep_task_recipe_link_points_back_to_the_prep_sheet(self):
+        dish = Dish.objects.create(team=self.team, name="Ramen")
+        component = Component.objects.create(team=self.team, name="Broth", recipe=self.recipe)
+        DishComponent.objects.create(dish=dish, component=component, order=1)
+
+        plan = planning_services.get_or_create_draft_plan(self.team, datetime.date(2026, 9, 1), self.user)
+        planning_services.finalize_plan(plan, self.user)
+
+        sheet_url = reverse("planning:plan_sheet", args=[str(plan.service_date)])
+        resp = self.client.get(sheet_url)
+        self.assertContains(
+            resp,
+            f'href="{reverse("menu:recipe_detail", args=[self.recipe.pk])}?next={sheet_url}"',
+        )

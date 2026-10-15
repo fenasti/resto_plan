@@ -19,7 +19,7 @@
       {% endif %}
 
       {% if task.linked_recipe_id %}
-        <a href="{% url 'menu:recipe_detail' task.linked_recipe_id %}" class="task-control text-decoration-none" title="Recipe">
+        <a href="{% url 'menu:recipe_detail' task.linked_recipe_id %}?next={{ request.get_full_path|urlencode }}" class="task-control text-decoration-none" title="Recipe">
           <i class="bi bi-journal-text"></i>
         </a>
       {% endif %}
