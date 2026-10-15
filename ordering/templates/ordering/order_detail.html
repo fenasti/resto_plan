@@ -212,10 +212,10 @@
         Finalize Order
       </button>
     {% else %}
-      <form method="post" class="w-100">
+      <form method="post" class="prep-sticky-actions-form">
         {% csrf_token %}
         <input type="hidden" name="action" value="reopen">
-        <button class="btn btn-warning w-100 h-100" type="submit">Reopen for Editing</button>
+        <button class="btn btn-warning" type="submit">Reopen for Editing</button>
       </form>
     {% endif %}
   </div>

@@ -490,16 +490,23 @@ a, button, .btn, [role="button"] {
   gap: 0.75rem;
 }
 
-.prep-sticky-actions-inner > * {
+.prep-sticky-actions-inner > *,
+.prep-sticky-actions-inner .btn {
   flex: 1 1 0;
   min-height: 48px;
 }
 
-/* Targets .btn specifically, not just direct children — a plain submit
-   button (as opposed to a modal-triggered one) needs a wrapping <form>,
-   which becomes the actual flex child instead of the button itself, so
-   w-100/h-100 on the button alone stretches it without centering its own
-   text inside the taller box. */
+/* A plain submit button (as opposed to a modal-triggered one, e.g. Reopen
+   for Editing) needs a wrapping <form> — display:contents removes the
+   form's own box from layout entirely so its button becomes the actual
+   flex child of .prep-sticky-actions-inner visually. CSS selectors still
+   match the real DOM tree though, not the render tree, so `> *` alone
+   never reaches a button wrapped this way — every flex-sizing rule here
+   also targets `.btn` by descendant, not just direct children. */
+.prep-sticky-actions-form {
+  display: contents;
+}
+
 .prep-sticky-actions-inner .btn {
   display: inline-flex;
   align-items: center;
@@ -525,7 +532,8 @@ a, button, .btn, [role="button"] {
     justify-content: flex-end;
   }
 
-  .prep-sticky-actions-inner > * {
+  .prep-sticky-actions-inner > *,
+  .prep-sticky-actions-inner .btn {
     flex: 0 0 auto;
     min-height: auto;
   }
