@@ -118,8 +118,12 @@ def finalize_plan(plan: PrepPlan, user) -> None:
     # make it to the kitchen. PLANNED survivors reset to NONE so
     # PRODUCTION's own claim/progress tracking (NONE -> PLANNED -> DONE)
     # starts clean instead of jumping straight to DONE on the first tap.
+    # assignee resets too — a survivor from a previous PRODUCTION run (one
+    # that went back to DRAFT via reopen_plan and got re-finalized) would
+    # otherwise still carry whoever claimed it last time, showing up
+    # "already claimed" to nobody in this round.
     plan.tasks.filter(status=PrepTask.TaskStatus.NONE).delete()
-    plan.tasks.update(status=PrepTask.TaskStatus.NONE)
+    plan.tasks.update(status=PrepTask.TaskStatus.NONE, assignee=None)
     plan.state = PrepPlan.PlanState.PRODUCTION
     plan.finalized_by = user
     plan.finalized_at = timezone.now()
@@ -150,6 +154,11 @@ def reopen_plan(plan: PrepPlan) -> None:
         plan.finalized_by = None
         plan.finalized_at = None
         plan.save(update_fields=["state", "finalized_by", "finalized_at"])
+        # DRAFT never shows or uses assignee — leaving it set on tasks that
+        # survive back into the Builder made task_row.html's "claimed"
+        # highlight fire on a plain unchecked checkbox, since that styling
+        # only checks for an assignee, not the plan's state.
+        plan.tasks.update(assignee=None)
 
 @transaction.atomic
 def task_tap(task_id: int, user) -> PrepTask:

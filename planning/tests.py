@@ -146,6 +146,76 @@ class CompletePlanTests(TestCase):
         self.assertEqual(result.daily_note, "")
 
 
+class StaleAssigneeAfterReopenTests(TestCase):
+    """
+    Regression: reopen_plan (PRODUCTION -> DRAFT) and finalize_plan both
+    reset task status but never cleared assignee. Real-world sequence that
+    surfaced this: finalize -> a cook claims a task -> owner reopens back
+    to DRAFT to tweak the list -> the claimed task still carries its old
+    assignee even though DRAFT never shows or uses one, so task_row.html's
+    "claimed" highlight (which only checks for an assignee) fires on what
+    looks like a plain unchecked checkbox -> on re-finalize, any task the
+    owner didn't touch survives with that same stale assignee, showing up
+    "already claimed" to nobody in the new PRODUCTION run.
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="x")
+        self.cook = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000340", created_by=self.owner)
+        TeamMembership.objects.create(user=self.owner, team=self.team, role=TeamMembership.Role.OWNER)
+        TeamMembership.objects.create(user=self.cook, team=self.team, role=TeamMembership.Role.MEMBER)
+
+        self.dish = Dish.objects.create(team=self.team, name="Oysters")
+        self.comp_a = Component.objects.create(team=self.team, name="Open Oyster")
+        self.comp_b = Component.objects.create(team=self.team, name="Green Nam Jim")
+        DishComponent.objects.create(dish=self.dish, component=self.comp_a, order=1)
+        DishComponent.objects.create(dish=self.dish, component=self.comp_b, order=2)
+
+        self.plan = services.get_or_create_draft_plan(self.team, datetime.date(2026, 8, 1), self.owner)
+        services.finalize_plan(self.plan, self.owner)
+        self.task_a = PrepTask.objects.get(plan=self.plan, dish_component__component=self.comp_a)
+        self.task_b = PrepTask.objects.get(plan=self.plan, dish_component__component=self.comp_b)
+
+        services.task_claim(self.task_a.id, self.cook)
+        services.task_claim(self.task_b.id, self.cook)
+
+    def test_reopen_to_draft_clears_assignee_on_every_task(self):
+        services.reopen_plan(self.plan)
+        self.task_a.refresh_from_db()
+        self.task_b.refresh_from_db()
+        self.assertIsNone(self.task_a.assignee_id)
+        self.assertIsNone(self.task_b.assignee_id)
+
+    def test_builder_does_not_show_the_claimed_highlight_after_reopen(self):
+        services.reopen_plan(self.plan)
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        self.assertNotContains(resp, "list-group-item-success")
+
+    def test_untouched_task_does_not_survive_refinalize_already_claimed(self):
+        # Owner reopens, only interacts with task_a (unchecks it), leaves
+        # task_b alone, then sends it back to the kitchen.
+        services.reopen_plan(self.plan)
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+        self.client.post(reverse("planning:task_tap", args=[self.task_a.id]))  # uncheck
+
+        services.finalize_plan(self.plan, self.owner)
+        self.task_b.refresh_from_db()
+        self.assertIsNone(self.task_b.assignee_id)
+
+        resp = self.client.get(reverse("planning:plan_sheet", args=[str(self.plan.service_date)]))
+        self.assertNotContains(resp, "cook")
+        self.assertContains(resp, "btn-outline-success")  # the plain "Claim" button, unclaimed
+
+
 class PlanCompleteViewTests(TestCase):
     """
     Covers the "Close Prep List" flow end to end: warns (but still allows)
