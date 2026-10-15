@@ -1,6 +1,10 @@
+from unittest.mock import patch
+
+import cloudinary.exceptions
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 
 from .models import Team, TeamMembership
@@ -255,6 +259,173 @@ class TeamAppearanceTests(TestCase):
         self.assertContains(resp, 'data-accent="blue"')
 
 
+class ProfileAvatarUploadFailureTests(TransactionTestCase):
+    """
+    CookProfile.avatar saves go straight to Cloudinary (MediaCloudinaryStorage)
+    with no retry/catch — an outage or bad credentials previously surfaced as
+    a raw 500 instead of a friendly "try again" message.
+
+    Uses TransactionTestCase, not TestCase: Model.save_base() wraps the
+    actual write in transaction.atomic(savepoint=False), so deliberately
+    raising mid-save inside plain TestCase's own outer atomic wrapper
+    poisons that transaction (a Django testing nuance, not a production
+    behavior) and makes the subsequent session save fail with an unrelated
+    SessionInterrupted. TransactionTestCase doesn't wrap tests in an outer
+    atomic, so this doesn't arise.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.client.force_login(self.user)
+
+    def _tiny_png(self):
+        # A real 1x1 PNG generated via Pillow, so Django's ImageField
+        # validation (which opens and verifies it) accepts it.
+        import io
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (1, 1)).save(buf, format="PNG")
+        return SimpleUploadedFile("avatar.png", buf.getvalue(), content_type="image/png")
+
+    @patch("cloudinary_storage.storage.MediaCloudinaryStorage._save")
+    def test_cloudinary_failure_shows_a_friendly_message_instead_of_500(self, mock_save):
+        mock_save.side_effect = cloudinary.exceptions.Error("simulated outage")
+        resp = self.client.post(
+            reverse("accounts:profile"),
+            {"display_name": "Cook", "avatar": self._tiny_png()},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Could not upload image")
+
+    @patch("cloudinary_storage.storage.MediaCloudinaryStorage._save")
+    def test_successful_upload_still_works(self, mock_save):
+        mock_save.return_value = "avatars/avatar.png"
+        resp = self.client.post(
+            reverse("accounts:profile"),
+            {"display_name": "Cook", "avatar": self._tiny_png()},
+        )
+        self.assertRedirects(resp, reverse("accounts:profile"))
+        self.user.cookprofile.refresh_from_db()
+        self.assertTrue(self.user.cookprofile.avatar)
+
+
+class TeamManageMemberMutationTests(TestCase):
+    """
+    update_member/remove_member were previously entirely untested — the
+    most permission-sensitive mutation in the app (role/flag changes,
+    removal) had zero coverage. Also covers the malformed-membership_id
+    fix (was a raw int() with no try/except -> 500 on a bad value).
+    """
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="owner", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000311", created_by=self.owner)
+        TeamMembership.objects.create(
+            user=self.owner, team=self.team, role=TeamMembership.Role.OWNER,
+            can_manage_team=True, can_manage_menu=True, can_manage_recipes=True,
+        )
+        self.member_user = User.objects.create_user(username="cook", password="x")
+        self.member = TeamMembership.objects.create(
+            user=self.member_user, team=self.team, role=TeamMembership.Role.MEMBER,
+        )
+
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_update_member_role_to_admin_grants_full_perms(self):
+        resp = self.client.post(reverse("accounts:team_manage"), {
+            "action": "update_member",
+            "membership_id": self.member.id,
+            "role": TeamMembership.Role.ADMIN,
+        })
+        self.assertRedirects(resp, reverse("accounts:team_manage"))
+        self.member.refresh_from_db()
+        self.assertEqual(self.member.role, TeamMembership.Role.ADMIN)
+        self.assertTrue(self.member.can_manage_team)
+        self.assertTrue(self.member.can_manage_menu)
+        self.assertTrue(self.member.can_manage_recipes)
+
+    def test_remove_member_deletes_the_membership(self):
+        resp = self.client.post(reverse("accounts:team_manage"), {
+            "action": "remove_member",
+            "membership_id": self.member.id,
+        })
+        self.assertRedirects(resp, reverse("accounts:team_manage"))
+        self.assertFalse(TeamMembership.objects.filter(id=self.member.id).exists())
+
+    def test_cannot_remove_the_owner(self):
+        owner_membership = TeamMembership.objects.get(user=self.owner, team=self.team)
+        resp = self.client.post(reverse("accounts:team_manage"), {
+            "action": "remove_member",
+            "membership_id": owner_membership.id,
+        })
+        self.assertRedirects(resp, reverse("accounts:team_manage"))
+        self.assertTrue(TeamMembership.objects.filter(id=owner_membership.id).exists())
+
+    def test_cannot_act_on_a_membership_from_another_team(self):
+        other_owner = User.objects.create_user(username="other_owner", password="x")
+        other_team = Team.objects.create(name="Other Kitchen", join_code="000312", created_by=other_owner)
+        other_membership = TeamMembership.objects.create(
+            user=other_owner, team=other_team, role=TeamMembership.Role.MEMBER,
+        )
+        resp = self.client.post(reverse("accounts:team_manage"), {
+            "action": "remove_member",
+            "membership_id": other_membership.id,
+        })
+        self.assertEqual(resp.status_code, 404)
+        self.assertTrue(TeamMembership.objects.filter(id=other_membership.id).exists())
+
+    def test_malformed_membership_id_does_not_crash(self):
+        resp = self.client.post(reverse("accounts:team_manage"), {
+            "action": "remove_member",
+            "membership_id": "not-a-number",
+        })
+        self.assertRedirects(resp, reverse("accounts:team_manage"))
+
+    def test_missing_membership_id_does_not_crash(self):
+        resp = self.client.post(reverse("accounts:team_manage"), {"action": "remove_member"})
+        self.assertRedirects(resp, reverse("accounts:team_manage"))
+
+
+class PlatformAdminUsersViewTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username="admin", password="x", is_staff=True)
+        self.client.force_login(self.admin)
+
+    def test_can_grant_staff_to_another_user(self):
+        other = User.objects.create_user(username="other", password="x")
+        resp = self.client.post(reverse("accounts:platform_users"), {
+            "user_id": other.id,
+            "make_staff": "on",
+        })
+        self.assertRedirects(resp, reverse("accounts:platform_users"))
+        other.refresh_from_db()
+        self.assertTrue(other.is_staff)
+
+    def test_cannot_remove_the_last_platform_admin(self):
+        resp = self.client.post(reverse("accounts:platform_users"), {"user_id": self.admin.id})
+        self.assertRedirects(resp, reverse("accounts:platform_users"))
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_staff, "the only admin should not have been demoted")
+
+    def test_can_remove_staff_when_another_admin_remains(self):
+        other_admin = User.objects.create_user(username="other_admin", password="x", is_staff=True)
+        resp = self.client.post(reverse("accounts:platform_users"), {"user_id": other_admin.id})
+        self.assertRedirects(resp, reverse("accounts:platform_users"))
+        other_admin.refresh_from_db()
+        self.assertFalse(other_admin.is_staff)
+
+    def test_user_list_is_paginated(self):
+        for i in range(30):
+            User.objects.create_user(username=f"bulk_user_{i}", password="x")
+        resp = self.client.get(reverse("accounts:platform_users"))
+        self.assertTrue(resp.context["is_paginated"])
+        self.assertEqual(len(resp.context["page_obj"]), 25)
+
+
 class DarkModeToggleTests(TestCase):
     def test_theme_toggle_button_present_for_logged_out_visitors(self):
         # The toggle lives outside the auth-gated part of the navbar, so it
@@ -274,6 +445,44 @@ class DarkModeToggleTests(TestCase):
 
         resp = self.client.get(reverse("home:index"))
         self.assertContains(resp, "data-theme-toggle")
+
+
+class AnonymousAccessToTeamGatedViewsTests(TestCase):
+    """
+    TeamMemberRequiredMixin/TeamPermissionRequiredMixin used to query
+    TeamMembership.objects.filter(user=request.user) before checking
+    whether request.user was even authenticated. For an anonymous visitor,
+    request.user is an AnonymousUser, which isn't a valid FK filter value —
+    Django raised a TypeError (uncaught -> 500) instead of redirecting to
+    login. Found by live-testing the app as an anonymous human would
+    (bookmarked link, shared URL, expired session), not by reading the
+    mixin in isolation. Covers one view from each of the three affected
+    apps plus the permission-flag variant.
+    """
+
+    def test_anonymous_visit_to_a_team_member_gated_view_redirects_to_login(self):
+        resp = self.client.get(reverse("planning:plan_list"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse("account_login"), resp.url)
+
+    def test_anonymous_visit_to_a_permission_gated_view_redirects_to_login(self):
+        resp = self.client.get(reverse("accounts:team_manage"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse("account_login"), resp.url)
+
+    def test_anonymous_visit_preserves_next_param_back_to_the_original_page(self):
+        target = reverse("menu:recipe_list")
+        resp = self.client.get(target)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse("account_login"), resp.url)
+        self.assertIn(f"next={target}", resp.url)
+
+    def test_logged_in_user_with_no_active_team_still_redirects_to_team_select(self):
+        # Make sure the authenticated path wasn't broken by the new check.
+        user = User.objects.create_user(username="loner", password="x")
+        self.client.force_login(user)
+        resp = self.client.get(reverse("planning:plan_list"))
+        self.assertRedirects(resp, reverse("accounts:team_start"))
 
 
 class StaticCacheBustTests(TestCase):

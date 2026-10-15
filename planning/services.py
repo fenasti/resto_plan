@@ -167,7 +167,7 @@ def task_tap(task_id: int, user) -> PrepTask:
     # FOR UPDATE across a nullable-side outer join without it (SQLite never
     # surfaced this since it ignores select_for_update entirely).
     task = PrepTask.objects.select_for_update(of=("self",)).select_related(
-        "plan", "dish_component__dish", "dish_component__component", "assignee"
+        "plan", "dish_component__dish", "dish_component__component", "assignee", "assignee__cookprofile"
     ).get(id=task_id)
 
     # Enforce membership
@@ -208,7 +208,7 @@ def task_tap(task_id: int, user) -> PrepTask:
 @transaction.atomic
 def task_claim(task_id: int, user) -> PrepTask:
     task = PrepTask.objects.select_for_update(of=("self",)).select_related(
-        "plan", "dish_component__dish", "dish_component__component", "assignee"
+        "plan", "dish_component__dish", "dish_component__component", "assignee", "assignee__cookprofile"
     ).get(id=task_id)
 
     if not TeamMembership.objects.filter(user=user, team=task.plan.team).exists():
@@ -236,7 +236,7 @@ def task_claim(task_id: int, user) -> PrepTask:
 @transaction.atomic
 def set_task_note(task_id: int, note: str, user) -> PrepTask:
     task = PrepTask.objects.select_for_update(of=("self",)).select_related(
-        "plan", "dish_component__dish", "dish_component__component", "assignee"
+        "plan", "dish_component__dish", "dish_component__component", "assignee", "assignee__cookprofile"
     ).get(id=task_id)
 
     if not TeamMembership.objects.filter(user=user, team=task.plan.team).exists():

@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Max, ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -96,7 +96,15 @@ class RecipeCreateView(TeamPermissionRequiredMixin, CreateView):
     def form_valid(self, form):
         obj = form.save(commit=False)
         obj.team = self.request.team
-        obj.save()
+        try:
+            obj.save()
+        except IntegrityError:
+            # clean_name()'s own uniqueness pre-check can't close the window
+            # between two concurrent submits of the same name — the DB
+            # constraint is the real guard, this just turns the resulting
+            # crash into the same friendly message the pre-check gives.
+            form.add_error("name", "A recipe with this name already exists.")
+            return self.form_invalid(form)
         return redirect(self.success_url)
 
 class RecipeUpdateView(TeamPermissionRequiredMixin, UpdateView):
@@ -139,7 +147,11 @@ class DishCreateView(TeamPermissionRequiredMixin, CreateView):
     def form_valid(self, form):
         obj = form.save(commit=False)
         obj.team = self.request.team
-        obj.save()
+        try:
+            obj.save()
+        except IntegrityError:
+            form.add_error("name", "A dish with this name already exists.")
+            return self.form_invalid(form)
         return redirect(self.success_url)
 
 class DishUpdateView(TeamPermissionRequiredMixin, UpdateView):
@@ -240,7 +252,11 @@ class ComponentCreateView(TeamPermissionRequiredMixin, CreateView):
     def form_valid(self, form):
         obj = form.save(commit=False)
         obj.team = self.request.team
-        obj.save()
+        try:
+            obj.save()
+        except IntegrityError:
+            form.add_error("name", "A prep item with this name already exists.")
+            return self.form_invalid(form)
         return redirect(self.success_url)
 
 class ComponentUpdateView(TeamPermissionRequiredMixin, UpdateView):

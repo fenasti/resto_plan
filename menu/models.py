@@ -42,6 +42,9 @@ class Component(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["team", "name"], name="uniq_team_component_name")
         ]
+        indexes = [
+            models.Index(fields=["team", "standalone_active"], name="idx_component_team_standalone"),
+        ]
         ordering = ["name"]
 
     def __str__(self):

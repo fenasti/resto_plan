@@ -51,6 +51,9 @@ class PurchaseItem(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["team", "name"], name="uniq_team_purchase_item_name")
         ]
+        indexes = [
+            models.Index(fields=["team", "is_active"], name="idx_purchaseitem_team_active"),
+        ]
         ordering = ["category", "sort_order", "name", "id"]
 
     @property

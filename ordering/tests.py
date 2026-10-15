@@ -1,13 +1,15 @@
 import datetime
 import io
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 from openpyxl import load_workbook
 
 from accounts.models import Team, TeamMembership
 from ordering.models import OrderList, OrderListItem, PurchaseCategory, PurchaseItem, Supplier
+from ordering import forms as ordering_forms
 from ordering import services
 
 User = get_user_model()
@@ -318,6 +320,37 @@ class OrderingSetupTests(TestCase):
         resp = self.client.get(reverse("ordering:ordering_setup"))
         self.assertContains(resp, "Jim&#x27;s Produce")
         self.assertContains(resp, "Produce")
+
+
+class ConcurrentDuplicateSupplierCreateTests(TransactionTestCase):
+    """
+    Unlike test_create_duplicate_supplier_case_insensitive_shows_error_not_duplicate
+    above (which exercises the normal clean_name() pre-check), this
+    simulates the actual race: two near-simultaneous submits of the same
+    new supplier name, where the pre-check passes for both and only the
+    DB's real UniqueConstraint catches the second save(). Uses
+    TransactionTestCase — see ConcurrentDuplicateNameCreateTests in
+    menu/tests.py for why plain TestCase can't be used here.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000241", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_create_supplier_race_shows_error_instead_of_500(self):
+        Supplier.objects.create(team=self.team, name="Jim's Produce")
+        with patch.object(ordering_forms.SupplierForm, "clean_name", lambda self: self.cleaned_data["name"]):
+            resp = self.client.post(reverse("ordering:ordering_setup"), {
+                "action": "add_supplier", "name": "Jim's Produce",
+            })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "already exists")
+        self.assertEqual(Supplier.objects.filter(team=self.team).count(), 1)
 
 
 class CreateNewItemAttachesSupplierTests(TestCase):

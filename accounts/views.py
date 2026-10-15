@@ -1,7 +1,9 @@
+import cloudinary.exceptions
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
+from django.core.paginator import Paginator
 from django.shortcuts import redirect, render, get_object_or_404
 from django.urls import reverse_lazy
 from django.views.generic import UpdateView, TemplateView, FormView
@@ -31,8 +33,15 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
         return self.request.user.cookprofile
 
     def form_valid(self, form):
+        # form.save() uploads the avatar to Cloudinary synchronously — an
+        # outage or bad credentials there shouldn't surface as a raw 500.
+        try:
+            response = super().form_valid(form)
+        except cloudinary.exceptions.Error:
+            messages.error(self.request, "Could not upload image. Please try again.")
+            return self.render_to_response(self.get_context_data(form=form))
         messages.success(self.request, "Profile updated.")
-        return super().form_valid(form)
+        return response
 
     def form_invalid(self, form):
         messages.error(self.request, "Could not update profile. Please check the form errors.")
@@ -212,7 +221,11 @@ class TeamManageView(TeamPermissionRequiredMixin, TemplateView):
             return redirect("accounts:team_manage")
 
         if action in ("update_member", "remove_member"):
-            membership_id = int(request.POST.get("membership_id"))
+            try:
+                membership_id = int(request.POST.get("membership_id", ""))
+            except (TypeError, ValueError):
+                messages.error(request, "Invalid member.")
+                return redirect("accounts:team_manage")
             membership = get_object_or_404(TeamMembership, id=membership_id, team=team)
 
             # The workspace owner is fixed: no one can demote or remove them
@@ -256,8 +269,12 @@ class PlatformAdminUsersView(PlatformAdminRequiredMixin, TemplateView):
     template_name = "accounts/platform_users.html"
 
     def get(self, request, *args, **kwargs):
-        users = User.objects.all().order_by("username")
-        return render(request, self.template_name, {"users": users})
+        page_obj = Paginator(User.objects.all().order_by("username"), 25).get_page(request.GET.get("page"))
+        return render(
+            request,
+            self.template_name,
+            {"users": page_obj, "page_obj": page_obj, "is_paginated": page_obj.has_other_pages()},
+        )
 
     def post(self, request, *args, **kwargs):
         form = PlatformStaffToggleForm(request.POST)
@@ -267,6 +284,13 @@ class PlatformAdminUsersView(PlatformAdminRequiredMixin, TemplateView):
 
         user = get_object_or_404(User, id=form.cleaned_data["user_id"])
         make_staff = bool(request.POST.get("make_staff"))
+
+        # Without this, the last platform admin could remove their own (or
+        # anyone's) final is_staff flag, leaving nobody able to grant it back
+        # in-app — the only recovery would be a direct DB/shell fix.
+        if not make_staff and user.is_staff and not User.objects.filter(is_staff=True).exclude(id=user.id).exists():
+            messages.error(request, "Can't remove the last platform admin.")
+            return redirect("accounts:platform_users")
 
         user.is_staff = make_staff
         user.save(update_fields=["is_staff"])

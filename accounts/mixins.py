@@ -10,6 +10,12 @@ class ActiveTeamRequiredMixin(LoginRequiredMixin):
     Requires authenticated user + active team in session.
     """
     def dispatch(self, request, *args, **kwargs):
+        # Check auth first: an anonymous visit should go straight to login
+        # (with ?next= back to this page), not get diverted through
+        # team_select — which would also redirect to login anyway, but
+        # without remembering where the user was actually headed.
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
         if not getattr(request, "team", None):
             return redirect(reverse("accounts:team_select"))
         return super().dispatch(request, *args, **kwargs)
@@ -20,6 +26,12 @@ class TeamMemberRequiredMixin(ActiveTeamRequiredMixin):
     Requires membership in active team.
     """
     def dispatch(self, request, *args, **kwargs):
+        # Must come before anything that queries TeamMembership by
+        # request.user: an anonymous visit has request.user as an
+        # AnonymousUser, which isn't a valid FK filter value and raises a
+        # TypeError (500) instead of the intended login redirect.
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
         if not getattr(request, "membership", None):
             if TeamMembership.objects.filter(user=request.user).exists():
                 return redirect(reverse("accounts:team_select"))
@@ -35,6 +47,8 @@ class TeamPermissionRequiredMixin(TeamMemberRequiredMixin):
     required_flag: str = ""
 
     def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
         membership = getattr(request, "membership", None)
         if not membership:
             if TeamMembership.objects.filter(user=request.user).exists():

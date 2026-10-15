@@ -1,4 +1,5 @@
 import datetime
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -1286,6 +1287,37 @@ class TaskActionsOnMissingTaskReturn404Tests(TestCase):
     def test_claim_on_missing_task_returns_404_not_500(self):
         resp = self.client.post(reverse("planning:task_claim", args=[999999]))
         self.assertEqual(resp.status_code, 404)
+
+    def test_note_post_racing_a_deletion_returns_404_not_500(self):
+        # The view's own pre-check still finds the task (it exists at that
+        # instant), but the service's own re-fetch raises DoesNotExist —
+        # simulating a second request deleting the task in between.
+        team = Team.objects.create(name="Kitchen2", join_code="000322", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=team, role=TeamMembership.Role.OWNER)
+        session = self.client.session
+        session["active_team_id"] = team.id
+        session.save()
+        plan = services.get_or_create_draft_plan(team, datetime.date(2026, 4, 1), self.user)
+        task = plan.tasks.first() or PrepTask.objects.create(
+            plan=plan, manual_label="Chop onions", status=PrepTask.TaskStatus.PLANNED
+        )
+        with patch("planning.services.set_task_note", side_effect=PrepTask.DoesNotExist):
+            resp = self.client.post(reverse("planning:task_note", args=[task.id]), {"daily_note": "x"})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_remove_adhoc_racing_a_deletion_redirects_with_a_message_not_500(self):
+        team = Team.objects.create(name="Kitchen3", join_code="000323", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=team, role=TeamMembership.Role.OWNER)
+        session = self.client.session
+        session["active_team_id"] = team.id
+        session.save()
+        plan = services.get_or_create_draft_plan(team, datetime.date(2026, 4, 2), self.user)
+        task = PrepTask.objects.create(
+            plan=plan, manual_label="Chop onions", status=PrepTask.TaskStatus.PLANNED
+        )
+        with patch("planning.services.remove_adhoc_task", side_effect=PrepTask.DoesNotExist):
+            resp = self.client.post(reverse("planning:task_remove_adhoc", args=[task.id]))
+        self.assertEqual(resp.status_code, 302)
 
 
 class PrintPlanViewTests(TestCase):

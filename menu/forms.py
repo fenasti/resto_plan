@@ -18,7 +18,12 @@ class DishForm(forms.ModelForm):
     def clean_name(self):
         name = self.cleaned_data["name"]
         if self.team is not None:
-            qs = Dish.objects.filter(team=self.team, name=name)
+            # Case-insensitive: matches ordering/forms.py's convention,
+            # which exists specifically to stop "Jim's Produce" vs
+            # "jim's produce"-style near-duplicates from the same kind of
+            # bug the ordering app's category/supplier migration had to
+            # clean up after the fact.
+            qs = Dish.objects.filter(team=self.team, name__iexact=name)
             if self.instance.pk:
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
@@ -42,7 +47,7 @@ class RecipeForm(forms.ModelForm):
     def clean_name(self):
         name = self.cleaned_data["name"]
         if self.team is not None:
-            qs = Recipe.objects.filter(team=self.team, name=name)
+            qs = Recipe.objects.filter(team=self.team, name__iexact=name)
             if self.instance.pk:
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
@@ -70,7 +75,7 @@ class ComponentForm(forms.ModelForm):
     def clean_name(self):
         name = self.cleaned_data["name"]
         if self.team is not None:
-            qs = Component.objects.filter(team=self.team, name=name)
+            qs = Component.objects.filter(team=self.team, name__iexact=name)
             if self.instance.pk:
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():

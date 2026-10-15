@@ -2,6 +2,7 @@ import datetime
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
@@ -18,7 +19,7 @@ from .forms import (
     QuickCreatePurchaseItemForm,
     SupplierForm,
 )
-from .models import OrderList, PurchaseCategory, PurchaseItem, Supplier
+from .models import OrderList, OrderListItem, PurchaseCategory, PurchaseItem, Supplier
 from .selectors import build_grouped_order_rows, get_order_item_queryset, get_order_list_queryset
 from . import services
 
@@ -131,7 +132,14 @@ class OrderingSetupView(TeamMemberRequiredMixin, TemplateView):
             if form.is_valid():
                 supplier = form.save(commit=False)
                 supplier.team = request.team
-                supplier.save()
+                try:
+                    supplier.save()
+                except IntegrityError:
+                    # clean_name()'s case-insensitive pre-check can't close
+                    # the window between two concurrent submits of the same
+                    # name — the DB constraint is the real guard.
+                    form.add_error("name", "A supplier with this name already exists.")
+                    return render(request, self.template_name, self._build_context(supplier_form=form))
                 messages.success(request, f"Added supplier: {supplier.name}")
                 return redirect("ordering:ordering_setup")
             return render(request, self.template_name, self._build_context(supplier_form=form))
@@ -146,7 +154,11 @@ class OrderingSetupView(TeamMemberRequiredMixin, TemplateView):
             if form.is_valid():
                 category = form.save(commit=False)
                 category.team = request.team
-                category.save()
+                try:
+                    category.save()
+                except IntegrityError:
+                    form.add_error("name", "A category with this name already exists.")
+                    return render(request, self.template_name, self._build_context(category_form=form))
                 messages.success(request, f"Added category: {category.name}")
                 return redirect("ordering:ordering_setup")
             return render(request, self.template_name, self._build_context(category_form=form))
@@ -280,10 +292,17 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
                 return redirect(self._detail_url(order, selected_supplier))
 
         if action == "remove_item":
-            item_id = int(request.POST.get("item_id", "0"))
+            try:
+                item_id = int(request.POST.get("item_id", ""))
+            except (TypeError, ValueError):
+                messages.error(request, "Invalid item.")
+                return redirect(self._detail_url(order, selected_supplier))
             try:
                 services.remove_order_item(item_id, request.user)
                 messages.success(request, "Item removed from the order list.")
+            except OrderListItem.DoesNotExist:
+                # Already gone — most likely a double-tap of Remove.
+                messages.info(request, "Item already removed.")
             except (ValueError, PermissionError) as exc:
                 messages.error(request, str(exc))
             return redirect(self._detail_url(order, selected_supplier))
@@ -333,6 +352,11 @@ class OrderDetailView(TeamMemberRequiredMixin, TemplateView):
                     )
                     messages.success(request, f"Created and added {purchase_item.name}.")
                     return redirect(self._detail_url(order, selected_supplier))
+                except IntegrityError:
+                    # clean_name()'s case-insensitive pre-check can't close
+                    # the window between two concurrent submits of the same
+                    # name — the DB constraint is the real guard.
+                    create_item_form.add_error("name", "A catalog item with this name already exists.")
                 except (ValueError, PermissionError) as exc:
                     messages.error(request, str(exc))
             add_existing_form = AddExistingOrderItemForm(team=request.team, supplier=selected_supplier)

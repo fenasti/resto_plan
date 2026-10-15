@@ -1,12 +1,14 @@
 import datetime
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 
 from accounts.models import Team, TeamMembership
 from planning import services as planning_services
 from planning.models import PrepPlan, PrepTask
+from . import forms as menu_forms
 from .models import Component, Dish, DishComponent, Recipe
 
 User = get_user_model()
@@ -40,6 +42,17 @@ class DuplicateNameFormValidationTests(TestCase):
         self.assertContains(response, "already exists")
         self.assertEqual(Dish.objects.filter(team=self.team, name="Ramen").count(), 1)
 
+    def test_dish_create_differently_cased_duplicate_shows_error_not_duplicate(self):
+        # Matches ordering/forms.py's existing __iexact convention — without
+        # it, "Ramen" and "ramen" would silently coexist as two dishes,
+        # exactly the drift the ordering app's supplier/category migration
+        # had to clean up after the fact.
+        Dish.objects.create(team=self.team, name="Ramen")
+        response = self.client.post(reverse("menu:dish_create"), {"name": "ramen", "is_active": "on"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already exists")
+        self.assertEqual(Dish.objects.filter(team=self.team).count(), 1)
+
     def test_dish_update_keeping_its_own_name_is_allowed(self):
         dish = Dish.objects.create(team=self.team, name="Ramen")
         response = self.client.post(
@@ -64,6 +77,61 @@ class DuplicateNameFormValidationTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "already exists")
+
+
+class ConcurrentDuplicateNameCreateTests(TransactionTestCase):
+    """
+    Unlike DuplicateNameFormValidationTests above (which exercises the
+    normal clean_name() pre-check), these simulate the actual race: two
+    near-simultaneous submits of the same new name, where the pre-check
+    passes for both (the name is genuinely free at validation time) and
+    only the DB's real UniqueConstraint catches the second save(). Patching
+    clean_name() to a no-op reproduces exactly that TOCTOU window without
+    needing real threads.
+
+    Uses TransactionTestCase, not TestCase: Model.save_base() wraps the
+    write in transaction.atomic(savepoint=False), so deliberately raising
+    mid-save inside plain TestCase's own outer atomic wrapper poisons that
+    transaction (a Django testing nuance, not production behavior) and
+    breaks the subsequent session save with an unrelated SessionInterrupted.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000012", created_by=self.user)
+        TeamMembership.objects.create(
+            user=self.user, team=self.team, role=TeamMembership.Role.OWNER,
+            can_manage_menu=True, can_manage_recipes=True,
+        )
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_dish_create_race_shows_error_instead_of_500(self):
+        Dish.objects.create(team=self.team, name="Ramen")
+        with patch.object(menu_forms.DishForm, "clean_name", lambda self: self.cleaned_data["name"]):
+            resp = self.client.post(reverse("menu:dish_create"), {"name": "Ramen", "is_active": "on"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "already exists")
+        self.assertEqual(Dish.objects.filter(team=self.team, name="Ramen").count(), 1)
+
+    def test_recipe_create_race_shows_error_instead_of_500(self):
+        Recipe.objects.create(team=self.team, name="Base Broth", ingredients_text="water")
+        with patch.object(menu_forms.RecipeForm, "clean_name", lambda self: self.cleaned_data["name"]):
+            resp = self.client.post(
+                reverse("menu:recipe_create"),
+                {"name": "Base Broth", "ingredients_text": "salt", "steps_text": ""},
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "already exists")
+
+    def test_component_create_race_shows_error_instead_of_500(self):
+        Component.objects.create(team=self.team, name="Broth")
+        with patch.object(menu_forms.ComponentForm, "clean_name", lambda self: self.cleaned_data["name"]):
+            resp = self.client.post(reverse("menu:component_create"), {"name": "Broth"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "already exists")
 
 
 class DishListSearchAndPaginationTests(TestCase):

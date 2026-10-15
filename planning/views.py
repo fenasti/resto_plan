@@ -277,7 +277,7 @@ def task_claim_view(request, pk: int):
 @login_required
 def task_note_view(request, pk: int):
     task = PrepTask.objects.select_related(
-        "plan", "dish_component__dish", "dish_component__component", "assignee"
+        "plan", "dish_component__dish", "dish_component__component", "assignee", "assignee__cookprofile"
     ).filter(pk=pk, plan__team=request.team).first()
     if not task:
         raise Http404("Task not found.")
@@ -290,6 +290,8 @@ def task_note_view(request, pk: int):
         task = services.set_task_note(pk, request.POST.get("daily_note", ""), request.user)
     except PermissionError:
         return HttpResponse(status=403)
+    except PrepTask.DoesNotExist:
+        return HttpResponse(status=404)
     _hydrate_plan_progress(task.plan)
     return render(
         request,
@@ -360,6 +362,10 @@ def remove_adhoc_task_view(request, pk: int):
     try:
         services.remove_adhoc_task(pk, request.user)
         messages.success(request, "Task removed.")
+    except PrepTask.DoesNotExist:
+        # Already gone — most likely a double-tap of Remove on two near-
+        # simultaneous requests. Nothing left to do, not an error.
+        messages.info(request, "Task already removed.")
     except (ValueError, PermissionError) as e:
         messages.error(request, str(e))
     return _adhoc_redirect(service_date)

@@ -15,9 +15,13 @@ class ActiveTeamMiddleware:
         if request.user.is_authenticated:
             team_id = request.session.get("active_team_id")
             if team_id:
-                team = Team.objects.filter(id=team_id).first()
-                if team:
-                    request.team = team
-                    request.membership = TeamMembership.objects.filter(user=request.user, team=team).first()
+                membership = (
+                    TeamMembership.objects.filter(user=request.user, team_id=team_id)
+                    .select_related("team")
+                    .first()
+                )
+                if membership:
+                    request.team = membership.team
+                    request.membership = membership
 
         return self.get_response(request)
