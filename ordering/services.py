@@ -60,12 +60,26 @@ def get_or_create_order(team, order_date, user, *, blank=False, source_order=Non
         defaults={"created_by": user, "state": OrderList.OrderState.DRAFT},
     )
 
-    if created and not blank:
-        source = source_order or get_most_recent_order(team, exclude_date=order_date)
-        if source:
-            clone_order_items(source, order)
+    cloned = False
+    if not blank:
+        # Clone into the target whenever it's still an empty draft — not
+        # only when it was *just* created here. Without this, asking to
+        # clone into a day that already has an order (even an empty one
+        # started earlier, e.g. via "Start Blank Order") silently did
+        # nothing: get_or_create's `defaults` only apply on creation, so
+        # the clone was skipped and the caller landed on an unchanged
+        # order with no indication the clone never happened. Cloning into
+        # an order that already has its own items would either silently
+        # merge two unrelated lists or crash on the (order_list,
+        # purchase_item) uniqueness constraint, so that case is correctly
+        # left alone — the view surfaces that explicitly instead.
+        if order.state == OrderList.OrderState.DRAFT and order.item_count == 0:
+            source = source_order or get_most_recent_order(team, exclude_date=order_date)
+            if source:
+                clone_order_items(source, order)
+                cloned = True
 
-    return order, created
+    return order, created, cloned
 
 
 def finalize_order(order: OrderList, user) -> None:

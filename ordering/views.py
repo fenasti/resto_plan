@@ -44,12 +44,11 @@ def create_today_order(request):
         return redirect_response
 
     order_date = timezone.localdate()
-    order, created = services.get_or_create_order(request.team, order_date, request.user)
-    if created:
-        if order.item_count:
-            messages.success(request, "Today's order list created from the latest order.")
-        else:
-            messages.success(request, "Started a new blank order list for today.")
+    order, created, cloned = services.get_or_create_order(request.team, order_date, request.user)
+    if cloned:
+        messages.success(request, "Today's order list created from the latest order.")
+    elif created:
+        messages.success(request, "Started a new blank order list for today.")
     else:
         messages.info(request, "Opened today's existing order list.")
     return redirect("ordering:order_detail", date_str=str(order.order_date))
@@ -62,7 +61,7 @@ def create_blank_today_order(request):
         return redirect_response
 
     order_date = timezone.localdate()
-    order, created = services.get_or_create_order(
+    order, created, _cloned = services.get_or_create_order(
         request.team,
         order_date,
         request.user,
@@ -83,16 +82,21 @@ def clone_order_to_today_view(request, date_str: str):
 
     source_date = _parse_date(date_str)
     source_order = get_object_or_404(OrderList, team=request.team, order_date=source_date)
-    order, created = services.get_or_create_order(
+    order, created, cloned = services.get_or_create_order(
         request.team,
         timezone.localdate(),
         request.user,
         source_order=source_order,
     )
-    if created:
+    if cloned:
         messages.success(request, f"Today's order list created from {source_order.order_date}.")
+    elif order.state != OrderList.OrderState.DRAFT:
+        messages.warning(request, "Today's order list is already finalized — nothing was cloned.")
     else:
-        messages.info(request, "Opened today's existing order list.")
+        messages.warning(
+            request,
+            f"Today's order list already has its own items — nothing was cloned from {source_order.order_date}.",
+        )
     return redirect("ordering:order_detail", date_str=str(order.order_date))
 
 

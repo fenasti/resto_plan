@@ -5,6 +5,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
+from django.utils import timezone
 from openpyxl import load_workbook
 
 from accounts.models import Team, TeamMembership
@@ -30,7 +31,7 @@ class OrderDetailMobileTouchUsabilityTests(TestCase):
 
         self.category = PurchaseCategory.objects.create(team=self.team, name="Produce")
         self.purchase_item = PurchaseItem.objects.create(team=self.team, name="Onions", category=self.category)
-        self.order, _ = services.get_or_create_order(
+        self.order, _, _ = services.get_or_create_order(
             self.team, datetime.date(2026, 3, 1), self.user, blank=True
         )
         OrderListItem.objects.create(order_list=self.order, purchase_item=self.purchase_item, sort_order=1)
@@ -149,7 +150,7 @@ class CloneOrderResetsQuantitiesTests(TestCase):
 
         self.category = PurchaseCategory.objects.create(team=self.team, name="Produce")
         self.onions = PurchaseItem.objects.create(team=self.team, name="Onions", category=self.category)
-        self.source_order, _ = services.get_or_create_order(
+        self.source_order, _, _ = services.get_or_create_order(
             self.team, datetime.date(2026, 4, 1), self.user, blank=True
         )
         OrderListItem.objects.create(
@@ -161,7 +162,7 @@ class CloneOrderResetsQuantitiesTests(TestCase):
         )
 
     def test_cloned_item_keeps_name_and_note_but_blanks_quantity(self):
-        target, _ = services.get_or_create_order(
+        target, _, _ = services.get_or_create_order(
             self.team, datetime.date(2026, 4, 2), self.user, source_order=self.source_order
         )
         cloned = OrderListItem.objects.get(order_list=target)
@@ -176,6 +177,93 @@ class CloneOrderResetsQuantitiesTests(TestCase):
         self.source_order.refresh_from_db()
         source_item = OrderListItem.objects.get(order_list=self.source_order)
         self.assertEqual(source_item.quantity_text, "5 kg")
+
+
+class CloneIntoAlreadyExistingTargetOrderTests(TestCase):
+    """
+    Reported bug: clicking "Create from This" on an old order, when
+    today's order already exists (even as an empty shell — e.g. from an
+    earlier "Start Blank Order" visit), did nothing. get_or_create_order's
+    clone only ran on created=True, so an already-existing target order
+    was returned completely untouched and the user just landed on
+    whatever today's order already was, with no indication the clone
+    hadn't happened.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000232", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+        self.category = PurchaseCategory.objects.create(team=self.team, name="Produce")
+        self.onions = PurchaseItem.objects.create(team=self.team, name="Onions", category=self.category)
+
+        self.source_order, _, _ = services.get_or_create_order(
+            self.team, datetime.date(2026, 5, 1), self.user, blank=True
+        )
+        OrderListItem.objects.create(order_list=self.source_order, purchase_item=self.onions, sort_order=1)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_service_clones_into_a_target_that_already_exists_but_is_empty(self):
+        # First visit starts a blank order for that day (e.g. "Start Blank
+        # Order"); the second call is the later "Create from This" attempt
+        # against that same, still-empty, already-existing day.
+        target, created, _ = services.get_or_create_order(
+            self.team, datetime.date(2026, 5, 2), self.user, blank=True
+        )
+        self.assertTrue(created)
+
+        target, created, cloned = services.get_or_create_order(
+            self.team, datetime.date(2026, 5, 2), self.user, source_order=self.source_order
+        )
+        self.assertFalse(created)
+        self.assertTrue(cloned, "an existing-but-empty draft should still be eligible for cloning")
+        self.assertEqual(target.items.count(), 1)
+
+    def test_service_does_not_clone_into_a_target_that_already_has_items(self):
+        target, _, _ = services.get_or_create_order(
+            self.team, datetime.date(2026, 5, 3), self.user, blank=True
+        )
+        OrderListItem.objects.create(order_list=target, purchase_item=self.onions, quantity_text="2 kg", sort_order=1)
+
+        target, created, cloned = services.get_or_create_order(
+            self.team, datetime.date(2026, 5, 3), self.user, source_order=self.source_order
+        )
+        self.assertFalse(cloned)
+        self.assertEqual(target.items.count(), 1)
+        self.assertEqual(target.items.first().quantity_text, "2 kg")  # untouched, not merged/duplicated
+
+    def test_create_from_this_view_clones_into_an_already_started_blank_order(self):
+        # The exact reported scenario: today's order already exists (blank
+        # draft, started earlier), then "Create from This" is clicked on
+        # an older order.
+        today = timezone.localdate()
+        services.get_or_create_order(self.team, today, self.user, blank=True)
+
+        resp = self.client.post(
+            reverse("ordering:order_clone", args=[str(self.source_order.order_date)])
+        )
+        self.assertRedirects(resp, reverse("ordering:order_detail", args=[str(today)]))
+
+        today_order = OrderList.objects.get(team=self.team, order_date=today)
+        self.assertEqual(today_order.items.count(), 1)
+        self.assertEqual(today_order.items.first().purchase_item, self.onions)
+
+    def test_create_from_this_view_warns_instead_of_silently_doing_nothing(self):
+        today = timezone.localdate()
+        target, _, _ = services.get_or_create_order(self.team, today, self.user, blank=True)
+        OrderListItem.objects.create(order_list=target, purchase_item=self.onions, quantity_text="2 kg", sort_order=1)
+
+        resp = self.client.post(
+            reverse("ordering:order_clone", args=[str(self.source_order.order_date)]), follow=True
+        )
+        messages = [str(m) for m in resp.context["messages"]]
+        self.assertTrue(any("nothing was cloned" in m for m in messages))
+        target.refresh_from_db()
+        self.assertEqual(target.items.count(), 1)  # unchanged, not duplicated
 
 
 class SupplierExportTests(TestCase):
@@ -203,7 +291,7 @@ class SupplierExportTests(TestCase):
         )
         self.unassigned_item = PurchaseItem.objects.create(team=self.team, name="Napkins")
 
-        self.order, _ = services.get_or_create_order(
+        self.order, _, _ = services.get_or_create_order(
             self.team, datetime.date(2026, 4, 5), self.user, blank=True
         )
         OrderListItem.objects.create(
@@ -241,7 +329,7 @@ class SupplierExportTests(TestCase):
         self.assertNotIn("Napkins", produce_values)
 
     def test_single_supplier_order_still_exports_one_sheet(self):
-        single_order, _ = services.get_or_create_order(
+        single_order, _, _ = services.get_or_create_order(
             self.team, datetime.date(2026, 4, 6), self.user, blank=True
         )
         OrderListItem.objects.create(
@@ -371,7 +459,7 @@ class CreateNewItemAttachesSupplierTests(TestCase):
 
         self.supplier = Supplier.objects.create(team=self.team, name="Jim's Produce")
         self.category = PurchaseCategory.objects.create(team=self.team, name="Produce")
-        self.order, _ = services.get_or_create_order(
+        self.order, _, _ = services.get_or_create_order(
             self.team, datetime.date(2026, 5, 1), self.user, blank=True
         )
 
@@ -413,7 +501,7 @@ class SupplierFirstAddItemFlowTests(TestCase):
         self.onions = PurchaseItem.objects.create(team=self.team, name="Onions", supplier=self.jims)
         self.chicken = PurchaseItem.objects.create(team=self.team, name="Chicken", supplier=self.citymeats)
 
-        self.order, _ = services.get_or_create_order(
+        self.order, _, _ = services.get_or_create_order(
             self.team, datetime.date(2026, 5, 2), self.user, blank=True
         )
         self.detail_url = reverse("ordering:order_detail", args=[str(self.order.order_date)])
@@ -486,7 +574,7 @@ class OrderTableGroupedBySupplierTests(TestCase):
             team=self.team, name="Onions", supplier=self.jims, category=self.produce
         )
 
-        self.order, _ = services.get_or_create_order(
+        self.order, _, _ = services.get_or_create_order(
             self.team, datetime.date(2026, 5, 3), self.user, blank=True
         )
         OrderListItem.objects.create(order_list=self.order, purchase_item=self.onions, sort_order=1)
