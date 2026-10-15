@@ -6,17 +6,37 @@
     <i class="bi bi-arrow-left"></i> {{ back_label }}
   </a>
 
-  <div class="d-flex justify-content-between align-items-center">
-    <h2>{{ recipe.name }}</h2>
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <h2 class="mb-0">{{ recipe.name }}</h2>
+      <label class="d-flex align-items-center gap-2 mb-0" title="Scale ingredient quantities">
+        <select id="recipe-scale" class="form-select form-select-sm" style="width: auto;">
+          <option value="1" selected>1x</option>
+          <option value="1.5">1.5x</option>
+          <option value="2">2x</option>
+          <option value="3">3x</option>
+          <option value="4">4x</option>
+          <option value="5">5x</option>
+          <option value="6">6x</option>
+          <option value="7">7x</option>
+          <option value="8">8x</option>
+          <option value="9">9x</option>
+          <option value="10">10x</option>
+        </select>
+      </label>
+    </div>
     {% if active_membership and active_membership.can_manage_recipes %}
       <a class="btn btn-outline-primary" href="{% url 'menu:recipe_edit' recipe.pk %}">Edit</a>
     {% endif %}
   </div>
 
-  <h5 class="mt-4">Ingredients</h5>
+  <h5 class="mt-4">
+    Ingredients
+    <small id="recipe-scale-note" class="text-muted fw-normal"></small>
+  </h5>
   <ul class="list-group">
     {% for line in recipe.ingredients_text|splitlines %}
-      <li class="list-group-item">{{ line }}</li>
+      <li class="list-group-item" data-base-text="{{ line }}">{{ line }}</li>
     {% empty %}
       <li class="list-group-item">No ingredients.</li>
     {% endfor %}

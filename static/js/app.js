@@ -125,6 +125,74 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   })();
 
+  // Recipe ingredient scaling: a quick multiplier next to the recipe title.
+  // Purely a display transform (nothing is saved) — it only rescales the
+  // leading quantity of each ingredient line (the app's own convention,
+  // e.g. "300 g butter"), never a number anywhere else in the line, so a
+  // stray digit inside an ingredient name (free text can contain anything)
+  // is never mistaken for a quantity. Lines with no leading number (e.g.
+  // "Salt to taste") are left untouched.
+  (function () {
+    const LEADING_RANGE = /^(\s*)(\d+(?:\.\d+)?)(\s*-\s*)(\d+(?:\.\d+)?)(.*)$/;
+    const LEADING_QUANTITY = /^(\s*)(\d+\s*\/\s*\d+|\d+(?:\.\d+)?)(.*)$/;
+
+    function formatScaled(value) {
+      return String(Math.round(value * 100) / 100);
+    }
+
+    function scaleQuantity(quantity, multiplier) {
+      if (quantity.indexOf("/") !== -1) {
+        const parts = quantity.split("/");
+        const numerator = parseFloat(parts[0]);
+        const denominator = parseFloat(parts[1]);
+        if (!denominator) return null;
+        return (numerator / denominator) * multiplier;
+      }
+      return parseFloat(quantity) * multiplier;
+    }
+
+    function scaleLine(text, multiplier) {
+      // At 1x, always show the exact original text — skip parsing entirely
+      // so a fraction like "1/2" never gets rewritten into "0.5" on revert.
+      if (multiplier === 1) return text;
+
+      // "2-3 cloves garlic" style ranges: scale both ends, keep the dash.
+      const rangeMatch = text.match(LEADING_RANGE);
+      if (rangeMatch) {
+        const [, leading, lo, sep, hi, rest] = rangeMatch;
+        const loValue = scaleQuantity(lo, multiplier);
+        const hiValue = scaleQuantity(hi, multiplier);
+        if (loValue !== null && hiValue !== null && isFinite(loValue) && isFinite(hiValue)) {
+          return leading + formatScaled(loValue) + sep + formatScaled(hiValue) + rest;
+        }
+      }
+
+      const match = text.match(LEADING_QUANTITY);
+      if (!match) return text;
+      const [, leading, quantity, rest] = match;
+
+      const value = scaleQuantity(quantity, multiplier);
+      if (value === null || !isFinite(value)) return text;
+
+      return leading + formatScaled(value) + rest;
+    }
+
+    document.addEventListener("change", function (e) {
+      const select = e.target.closest("#recipe-scale");
+      if (!select) return;
+
+      const multiplier = parseFloat(select.value) || 1;
+      document.querySelectorAll("[data-base-text]").forEach(function (el) {
+        el.textContent = scaleLine(el.dataset.baseText, multiplier);
+      });
+
+      const note = document.getElementById("recipe-scale-note");
+      if (note) {
+        note.textContent = multiplier === 1 ? "" : `(scaled ×${multiplier})`;
+      }
+    });
+  })();
+
   // Dynamic formset "+" button: clones a hidden <template> row (Django's
   // {{ formset.empty_form }}, using its __prefix__ placeholder) and bumps
   // TOTAL_FORMS. Works for any formset via data-formset-* attributes.

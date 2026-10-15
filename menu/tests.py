@@ -629,3 +629,48 @@ class RecipeDetailBackLinkTests(TestCase):
             resp,
             f'href="{reverse("menu:recipe_detail", args=[self.recipe.pk])}?next={sheet_url}"',
         )
+
+
+class RecipeDetailScaleToolTests(TestCase):
+    """
+    The ingredient scaling multiplier is a pure client-side display
+    transform (nothing is saved — see static/js/app.js) — these tests only
+    cover what the server renders: the multiplier control, and each
+    ingredient line tagged with its untouched base text for the JS to
+    scale from. The actual scaling math is verified separately in
+    scratchpad JS fixtures, since Django's test client can't execute JS.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000022", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_scale_select_renders_with_default_1x_selected(self):
+        recipe = Recipe.objects.create(team=self.team, name="Broth", ingredients_text="300 g butter")
+        resp = self.client.get(reverse("menu:recipe_detail", args=[recipe.pk]))
+        self.assertContains(resp, 'id="recipe-scale"')
+        self.assertContains(resp, '<option value="1" selected>1x</option>')
+        self.assertContains(resp, '<option value="10">10x</option>')
+
+    def test_each_ingredient_line_carries_its_untouched_base_text(self):
+        recipe = Recipe.objects.create(
+            team=self.team,
+            name="Broth",
+            ingredients_text="300 g butter\n2 L soy sauce\nSalt to taste",
+        )
+        resp = self.client.get(reverse("menu:recipe_detail", args=[recipe.pk]))
+        self.assertContains(resp, 'data-base-text="300 g butter"')
+        self.assertContains(resp, 'data-base-text="2 L soy sauce"')
+        self.assertContains(resp, 'data-base-text="Salt to taste"')
+
+    def test_base_text_is_html_escaped(self):
+        recipe = Recipe.objects.create(
+            team=self.team, name="Broth", ingredients_text='2 cups "special" sauce'
+        )
+        resp = self.client.get(reverse("menu:recipe_detail", args=[recipe.pk]))
+        self.assertContains(resp, 'data-base-text="2 cups &quot;special&quot; sauce"')
