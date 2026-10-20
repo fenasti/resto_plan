@@ -38,7 +38,53 @@ document.addEventListener(
       event.detail.headers["X-CSRFToken"] = csrfInput.value;
     }
   });
-  
+
+  // A tap/claim/etc. HTMX request that fails (dropped kitchen WiFi, a
+  // timeout, a 500) otherwise does nothing visible — the row just sits
+  // there, and there's no way to tell "it worked" from "it silently
+  // didn't". Surfaces the same dismissible alert style Django's own
+  // messages use, so it reads as a normal part of the UI, not a dev error.
+  (function () {
+    function showNetworkErrorBanner(text) {
+      const container = document.getElementById("messages-container");
+      if (!container) return;
+
+      const existing = container.querySelector("[data-auto-network-error]");
+      if (existing) existing.remove();
+
+      const alert = document.createElement("div");
+      alert.className = "alert alert-danger alert-dismissible fade show";
+      alert.setAttribute("role", "alert");
+      alert.setAttribute("data-auto-network-error", "");
+      alert.textContent = text;
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "btn-close";
+      closeBtn.setAttribute("data-bs-dismiss", "alert");
+      alert.appendChild(closeBtn);
+
+      container.appendChild(alert);
+    }
+
+    document.body.addEventListener("htmx:sendError", function () {
+      showNetworkErrorBanner("Couldn't reach the server — check your connection and try again.");
+    });
+    document.body.addEventListener("htmx:timeout", function () {
+      showNetworkErrorBanner("That took too long — check your connection and try again.");
+    });
+    document.body.addEventListener("htmx:responseError", function (event) {
+      const status = event.detail && event.detail.xhr ? event.detail.xhr.status : null;
+      if (status === 403) {
+        showNetworkErrorBanner("You don't have permission to do that.");
+      } else if (status === 404) {
+        showNetworkErrorBanner("That item is gone — try refreshing the page.");
+      } else {
+        showNetworkErrorBanner("Something went wrong saving that — try again.");
+      }
+    });
+  })();
+
 // Confirm modal controller (works for both builder-form actions and direct POST actions)
 document.addEventListener("DOMContentLoaded", function () {
   const modalEl = document.getElementById("confirmModal");
