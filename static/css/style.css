@@ -467,8 +467,14 @@ a, button, .btn, [role="button"] {
 .prep-shell-with-sticky-bar {
   /* Must clear the bar's own height, which grows on notched phones
      (env(safe-area-inset-bottom) below) — otherwise the last row or two
-     of content sits underneath the fixed bar and silently eats taps. */
-  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+     of content (e.g. the Erase/Delete button in .danger-zone) sits
+     underneath the fixed bar and is both invisible and untappable.
+     !important is required here, not optional: this element also carries
+     Bootstrap's py-3/py-md-4 utility classes, which set padding-bottom
+     with !important themselves — without matching that, those utilities
+     always win regardless of cascade order or selector specificity, and
+     this rule silently never takes effect at all. */
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)) !important;
 }
 
 .prep-sticky-actions {
@@ -515,7 +521,9 @@ a, button, .btn, [role="button"] {
 
 @media (min-width: 992px) {
   .prep-shell-with-sticky-bar {
-    padding-bottom: 0;
+    /* Same !important requirement as the mobile rule above — py-md-4
+       also sets padding-bottom with !important at this breakpoint. */
+    padding-bottom: 0 !important;
   }
 
   .prep-sticky-actions {
