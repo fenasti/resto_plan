@@ -145,6 +145,18 @@ else:
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Django's default message tag for the ERROR level is literally "error",
+# but templates/includes/messages.html builds its class as alert-{tag} to
+# match Bootstrap's alert-success/alert-warning/alert-info/alert-danger
+# naming — and Bootstrap has no .alert-error class. Without this mapping,
+# every messages.error(...) call across the whole app renders as
+# alert-error: structurally a dismissible alert, but with zero color/
+# styling, since that class simply doesn't exist in Bootstrap's CSS.
+from django.contrib.messages import constants as message_constants
+MESSAGE_TAGS = {
+    message_constants.ERROR: "danger",
+}
+
 # allauth
 SITE_ID = 1
 AUTHENTICATION_BACKENDS = [

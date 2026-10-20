@@ -7,7 +7,7 @@
 
   <div class="d-flex justify-content-between align-items-center">
     <div>
-      <h2>Edit Prep Items: {{ dish.name }}</h2>
+      <h2>{{ dish.name }}: Prep Items</h2>
       <p class="text-muted mb-0">Add prep items or adjust order and notes. Remove prep items from the dish display page.</p>
     </div>
   </div>
@@ -20,19 +20,11 @@
       {{ quick_formset.management_form }}
       <div id="quick-component-rows">
         {% for form in quick_formset %}
-          <div class="row g-2 mb-2 align-items-center quick-component-row">
-            <div class="col-12 col-sm-5">{{ form.label }}</div>
-            <div class="col-auto text-muted small">or</div>
-            <div class="col-12 col-sm-5">{{ form.recipe }}</div>
-          </div>
+          {% include "includes/label_or_recipe_row.html" %}
         {% endfor %}
       </div>
       <template id="quick-component-row-template">
-        <div class="row g-2 mb-2 align-items-center quick-component-row">
-          <div class="col-12 col-sm-5">{{ quick_formset.empty_form.label }}</div>
-          <div class="col-auto text-muted small">or</div>
-          <div class="col-12 col-sm-5">{{ quick_formset.empty_form.recipe }}</div>
-        </div>
+        {% include "includes/label_or_recipe_row.html" with form=quick_formset.empty_form %}
       </template>
       <div class="d-flex gap-2 mt-2 quick-add-actions">
         <button type="button" class="btn btn-sm btn-outline-success"

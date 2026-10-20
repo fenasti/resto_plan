@@ -64,19 +64,11 @@
       {{ adhoc_formset.management_form }}
       <div id="builder-adhoc-rows">
         {% for aform in adhoc_formset %}
-          <div class="row g-2 mb-2 align-items-center">
-            <div class="col-12 col-sm-5">{{ aform.label }}</div>
-            <div class="col-auto text-muted small">or</div>
-            <div class="col-12 col-sm-5">{{ aform.recipe }}</div>
-          </div>
+          {% include "includes/label_or_recipe_row.html" with form=aform %}
         {% endfor %}
       </div>
       <template id="builder-adhoc-row-template">
-        <div class="row g-2 mb-2 align-items-center">
-          <div class="col-12 col-sm-5">{{ adhoc_formset.empty_form.label }}</div>
-          <div class="col-auto text-muted small">or</div>
-          <div class="col-12 col-sm-5">{{ adhoc_formset.empty_form.recipe }}</div>
-        </div>
+        {% include "includes/label_or_recipe_row.html" with form=adhoc_formset.empty_form %}
       </template>
       <div class="d-flex gap-2 mt-2">
         <button type="button" class="btn btn-sm btn-outline-success"

@@ -259,3 +259,34 @@ document.addEventListener("DOMContentLoaded", function () {
     container.appendChild(wrapper.firstElementChild);
     totalForms.value = formIndex + 1;
   });
+
+  // "Custom name" / "From recipe" toggle (includes/label_or_recipe_row.html):
+  // only one of the two underlying fields is ever shown, instead of both
+  // sitting side by side at once — the mode you're NOT using also gets its
+  // value cleared so a leftover value can never sneak into the submit
+  // alongside the one you actually meant. Delegated on document, so this
+  // works for rows added later via "+ Add another row" with no extra wiring.
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-label-or-recipe-mode]");
+    if (!btn) return;
+
+    const row = btn.closest("[data-label-or-recipe-row]");
+    if (!row) return;
+    const mode = btn.getAttribute("data-label-or-recipe-mode");
+
+    row.querySelectorAll("[data-label-or-recipe-mode]").forEach(function (modeBtn) {
+      const pressed = modeBtn.getAttribute("data-label-or-recipe-mode") === mode;
+      modeBtn.setAttribute("aria-pressed", pressed ? "true" : "false");
+      modeBtn.classList.toggle("btn-secondary", pressed);
+      modeBtn.classList.toggle("btn-outline-secondary", !pressed);
+    });
+
+    row.querySelectorAll("[data-label-or-recipe-panel]").forEach(function (panel) {
+      const isActive = panel.getAttribute("data-label-or-recipe-panel") === mode;
+      panel.hidden = !isActive;
+      if (!isActive) {
+        const field = panel.querySelector("input, select");
+        if (field) field.value = "";
+      }
+    });
+  });

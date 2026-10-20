@@ -586,6 +586,13 @@ class BuilderAdHocWidgetTests(TestCase):
         self.assertIn("Add a one-off prep task", content)
         self.assertIn("data-formset-add=\"builder-adhoc-rows\"", content)
 
+    def test_builder_renders_the_custom_name_or_recipe_toggle(self):
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        content = resp.content.decode()
+        self.assertIn("data-label-or-recipe-row", content)
+        self.assertIn('data-label-or-recipe-mode="label"', content)
+        self.assertIn('data-label-or-recipe-mode="recipe"', content)
+
     def test_recipe_dropdown_shows_a_real_placeholder_not_dashes(self):
         # Django's ModelChoiceField defaults an unlabeled empty option to
         # a literal "---------", which showed up in both the rendered row

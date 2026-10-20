@@ -1,0 +1,19 @@
+{% comment %}
+  One row of the "custom name OR pick a recipe" widget, shared by the
+  Builder's one-off prep task form and the menu app's quick-add prep item
+  form — both use a form with the same `label`/`recipe` field names and
+  the same "pick one, not both" validation. Usage:
+    {% include "includes/label_or_recipe_row.html" with form=someform %}
+  A toggle switches which single field is shown/usable, instead of
+  displaying both inputs side by side at once — see static/js/app.js for
+  the behavior (also clears the hidden field's value on switch, so a
+  stale value can never sneak into the submit).
+{% endcomment %}
+<div class="mb-3 label-or-recipe-row" data-label-or-recipe-row>
+  <div class="btn-group btn-group-sm mb-2" role="group" aria-label="Choose how to add this item">
+    <button type="button" class="btn btn-secondary" data-label-or-recipe-mode="label" aria-pressed="true">Custom name</button>
+    <button type="button" class="btn btn-outline-secondary" data-label-or-recipe-mode="recipe" aria-pressed="false">From recipe</button>
+  </div>
+  <div data-label-or-recipe-panel="label">{{ form.label }}</div>
+  <div data-label-or-recipe-panel="recipe" hidden>{{ form.recipe }}</div>
+</div>

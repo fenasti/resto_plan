@@ -441,6 +441,17 @@ class ComponentQuickCreateTests(TestCase):
             data[f"form-{i}-recipe"] = row.get("recipe", "")
         return data
 
+    def test_edit_page_renders_the_custom_name_or_recipe_toggle(self):
+        resp = self.client.get(reverse("menu:dish_components_edit", args=[self.dish.pk]))
+        content = resp.content.decode()
+        self.assertIn("data-label-or-recipe-row", content)
+        self.assertIn('data-label-or-recipe-mode="label"', content)
+        self.assertIn('data-label-or-recipe-mode="recipe"', content)
+        # Heading leads with the dish's own name, not a generic catalog-
+        # sounding "Edit Prep Items" — easy to misread as the global
+        # Prep Items catalog rather than this specific dish's items.
+        self.assertContains(resp, "Ramen: Prep Items")
+
     def test_creates_manual_and_recipe_components_in_one_submit(self):
         payload = self._formset_payload([
             {"label": "Chop chives"},
@@ -477,6 +488,19 @@ class ComponentQuickCreateTests(TestCase):
         )
         self.assertRedirects(response, reverse("menu:dish_components_edit", args=[self.dish.pk]))
         self.assertFalse(Component.objects.filter(team=self.team, name="Chop chives").exists())
+
+    def test_both_label_and_recipe_error_renders_with_proper_styling(self):
+        # Regression: Django's default message tag for ERROR is literally
+        # "error", not "danger" — templates/includes/messages.html builds
+        # its class as alert-{tag}, and Bootstrap has no .alert-error, so
+        # this rendered with zero color/styling until MESSAGE_TAGS mapped
+        # ERROR -> "danger" in settings.py.
+        payload = self._formset_payload([{"label": "Chop chives", "recipe": self.recipe.id}])
+        response = self.client.post(
+            reverse("menu:component_quick_create", args=[self.dish.pk]), payload, follow=True
+        )
+        self.assertContains(response, "alert-danger")
+        self.assertNotContains(response, "alert-error")
 
     def test_member_restricted_from_menu_cannot_quick_create(self):
         # can_manage_menu defaults to True (horizontal by default); this
