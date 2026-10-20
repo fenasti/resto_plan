@@ -33,6 +33,7 @@ class AdHocTaskForm(forms.Form):
     recipe = forms.ModelChoiceField(
         queryset=Recipe.objects.none(),
         required=False,
+        empty_label="Recipe",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
 

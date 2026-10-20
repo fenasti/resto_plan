@@ -586,6 +586,15 @@ class BuilderAdHocWidgetTests(TestCase):
         self.assertIn("Add a one-off prep task", content)
         self.assertIn("data-formset-add=\"builder-adhoc-rows\"", content)
 
+    def test_recipe_dropdown_shows_a_real_placeholder_not_dashes(self):
+        # Django's ModelChoiceField defaults an unlabeled empty option to
+        # a literal "---------", which showed up in both the rendered row
+        # and the hidden <template> used to clone new rows.
+        resp = self.client.get(reverse("planning:plan_builder", args=[str(self.plan.service_date)]))
+        content = resp.content.decode()
+        self.assertIn('<option value="" selected>Recipe</option>', content)
+        self.assertNotIn("---------", content)
+
     def test_add_task_lands_back_on_builder_and_shows_up_there(self):
         resp = self.client.post(
             reverse("planning:task_add_adhoc", args=[str(self.plan.service_date)]),
