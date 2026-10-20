@@ -546,20 +546,103 @@ class DishComponentsEditEmptyStateTests(TestCase):
     def test_no_prep_items_shows_empty_message_not_blank_rows(self):
         resp = self.client.get(reverse("menu:dish_components_edit", args=[self.dish.pk]))
         self.assertContains(resp, "No prep items yet")
-        self.assertNotContains(resp, 'name="dish_components-0-component"')
+        self.assertNotContains(resp, 'name="dish_components-0-order"')
 
     def test_existing_prep_items_render_with_no_extra_blank_rows(self):
         component = Component.objects.create(team=self.team, name="Broth")
         DishComponent.objects.create(dish=self.dish, component=component, order=1)
 
         resp = self.client.get(reverse("menu:dish_components_edit", args=[self.dish.pk]))
-        self.assertContains(resp, 'name="dish_components-0-component"')
-        self.assertNotContains(resp, 'name="dish_components-1-component"')
+        self.assertContains(resp, 'name="dish_components-0-order"')
+        self.assertNotContains(resp, 'name="dish_components-1-order"')
 
     def test_recipe_placeholder_reads_recipe_not_dashes(self):
         resp = self.client.get(reverse("menu:dish_components_edit", args=[self.dish.pk]))
         self.assertContains(resp, ">Recipe</option>")
         self.assertNotContains(resp, ">---------</option>")
+
+    def test_component_name_shown_as_plain_text_not_a_dropdown(self):
+        # Swapping which Component a row points to via a <select> was
+        # confusing — to use a different prep item, remove this one and
+        # add the one you actually want instead. (The page's unrelated
+        # "Add a prep item" recipe picker is still a <select> — only the
+        # saved-items table's own component field is checked here.)
+        component = Component.objects.create(team=self.team, name="Broth")
+        DishComponent.objects.create(dish=self.dish, component=component, order=1)
+
+        resp = self.client.get(reverse("menu:dish_components_edit", args=[self.dish.pk]))
+        self.assertContains(resp, "Broth")
+        self.assertNotContains(resp, 'name="dish_components-0-component"')
+
+    def test_template_note_field_no_longer_rendered(self):
+        component = Component.objects.create(team=self.team, name="Broth")
+        DishComponent.objects.create(
+            dish=self.dish, component=component, order=1, template_note="ask for ripe ones"
+        )
+        resp = self.client.get(reverse("menu:dish_components_edit", args=[self.dish.pk]))
+        self.assertNotContains(resp, "dish_components-0-template_note")
+        self.assertNotContains(resp, "ask for ripe ones")
+
+
+class RemoveDishComponentFromEditPageTests(TestCase):
+    """
+    dish_component_remove previously had no tests at all. It originally
+    lived only on Dish Detail; it's now also reachable directly from Edit
+    Prep Items (the table's new Remove button), so it needs to land back
+    on whichever page actually triggered it, via a validated ?next=
+    instead of always bouncing to Dish Detail.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000033", created_by=self.user)
+        TeamMembership.objects.create(
+            user=self.user, team=self.team, role=TeamMembership.Role.OWNER, can_manage_menu=True
+        )
+        self.dish = Dish.objects.create(team=self.team, name="Ramen")
+        self.component = Component.objects.create(team=self.team, name="Broth")
+        self.dish_component = DishComponent.objects.create(dish=self.dish, component=self.component, order=1)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_edit_page_shows_a_remove_button_with_a_next_back_to_itself(self):
+        edit_url = reverse("menu:dish_components_edit", args=[self.dish.pk])
+        resp = self.client.get(edit_url)
+        remove_url = reverse("menu:dish_component_remove", args=[self.dish_component.pk])
+        self.assertContains(resp, f'{remove_url}?next={edit_url}')
+
+    def test_removing_from_edit_page_redirects_back_to_edit_page(self):
+        edit_url = reverse("menu:dish_components_edit", args=[self.dish.pk])
+        resp = self.client.post(
+            reverse("menu:dish_component_remove", args=[self.dish_component.pk]) + f"?next={edit_url}"
+        )
+        self.assertRedirects(resp, edit_url)
+        self.assertFalse(DishComponent.objects.filter(pk=self.dish_component.pk).exists())
+
+    def test_removing_without_next_still_defaults_to_dish_detail(self):
+        # Unchanged default for the original Dish Detail "Remove" button.
+        resp = self.client.post(reverse("menu:dish_component_remove", args=[self.dish_component.pk]))
+        self.assertRedirects(resp, reverse("menu:dish_detail", args=[self.dish.pk]))
+
+    def test_an_external_next_is_rejected_falling_back_to_dish_detail(self):
+        resp = self.client.post(
+            reverse("menu:dish_component_remove", args=[self.dish_component.pk]) + "?next=https://evil.example/"
+        )
+        self.assertRedirects(resp, reverse("menu:dish_detail", args=[self.dish.pk]))
+
+    def test_production_history_block_still_respects_next(self):
+        plan = planning_services.get_or_create_draft_plan(self.team, datetime.date(2026, 1, 1), self.user)
+        planning_services.finalize_plan(plan, self.user)
+
+        edit_url = reverse("menu:dish_components_edit", args=[self.dish.pk])
+        resp = self.client.post(
+            reverse("menu:dish_component_remove", args=[self.dish_component.pk]) + f"?next={edit_url}"
+        )
+        self.assertRedirects(resp, edit_url)
+        self.assertTrue(DishComponent.objects.filter(pk=self.dish_component.pk).exists())
 
 
 class ToggleStandaloneActiveTests(TestCase):

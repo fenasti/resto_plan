@@ -120,12 +120,16 @@ QuickComponentFormSet = formset_factory(QuickComponentForm, extra=1, can_delete=
 DishComponentFormSet = inlineformset_factory(
     parent_model=Dish,
     model=DishComponent,
-    fields=["component", "order", "template_note"],
+    # component is deliberately not editable here — swapping which
+    # Component a row points to via a dropdown was confusing (if you want
+    # a different item, remove this one and add the one you actually
+    # want). template_note is dropped too: it's a static annotation
+    # shown on Dish Detail, unrelated to the per-day note already
+    # editable from the prep list itself, and was redundant with it.
+    fields=["order"],
     extra=0,
     can_delete=False,
     widgets={
-        "component": forms.Select(attrs={"class": "form-select"}),
         "order": forms.NumberInput(attrs={"class": "form-control", "style": "max-width:120px;"}),
-        "template_note": forms.TextInput(attrs={"class": "form-control"}),
     },
 )

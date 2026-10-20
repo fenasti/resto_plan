@@ -8,7 +8,7 @@
   <div class="d-flex justify-content-between align-items-center">
     <div>
       <h2>{{ dish.name }}: Prep Items</h2>
-      <p class="text-muted mb-0">Add prep items or adjust order and notes. Remove prep items from the dish display page.</p>
+      <p class="text-muted mb-0">Add prep items, adjust their order, or remove one.</p>
     </div>
   </div>
 
@@ -54,7 +54,7 @@
             <tr>
               <th>Prep Item</th>
               <th style="width:140px;">Order</th>
-              <th>Note</th>
+              <th style="width:100px;"></th>
             </tr>
           </thead>
           <tbody>
@@ -63,16 +63,21 @@
                 <td>
                   {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
                   {{ form.non_field_errors }}
-                  {{ form.component.errors }}
-                  {{ form.component }}
+                  {{ form.instance.component.name }}
                 </td>
                 <td>
                   {{ form.order.errors }}
                   {{ form.order }}
                 </td>
                 <td>
-                  {{ form.template_note.errors }}
-                  {{ form.template_note }}
+                  <button class="btn btn-sm btn-outline-danger" type="button"
+                          data-bs-toggle="modal" data-bs-target="#confirmModal"
+                          data-confirm-title="Remove prep item"
+                          data-confirm-body="Remove '{{ form.instance.component.name }}' from '{{ dish.name }}'?"
+                          data-confirm-submit="Remove"
+                          data-confirm-post="{% url 'menu:dish_component_remove' form.instance.pk %}?next={{ request.get_full_path|urlencode }}">
+                    Remove
+                  </button>
                 </td>
               </tr>
             {% endfor %}

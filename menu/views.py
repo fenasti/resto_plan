@@ -442,6 +442,17 @@ def remove_dish_component(request, pk: int):
     dish = dish_component.dish
     component_name = dish_component.component.name
 
+    # Removable from both Dish Detail and Edit Prep Items now — land back
+    # on whichever one the request actually came from, defaulting to Dish
+    # Detail (its original, only home) when there's no valid next.
+    next_url = request.GET.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        fallback_redirect = redirect(next_url)
+    else:
+        fallback_redirect = redirect("menu:dish_detail", pk=dish.pk)
+
     has_production_history = PrepTask.objects.filter(
         dish_component=dish_component,
         plan__state=PrepPlan.PlanState.PRODUCTION,
@@ -452,7 +463,7 @@ def remove_dish_component(request, pk: int):
             request,
             f"'{component_name}' is already used in a production prep sheet, so it cannot be removed from '{dish.name}'.",
         )
-        return redirect("menu:dish_detail", pk=dish.pk)
+        return fallback_redirect
 
     try:
         with transaction.atomic():
@@ -466,11 +477,11 @@ def remove_dish_component(request, pk: int):
             request,
             f"'{component_name}' still has protected references, so it could not be removed.",
         )
-        return redirect("menu:dish_detail", pk=dish.pk)
+        return fallback_redirect
 
     refreshed_count = _refresh_draft_plans_for_dish(dish)
     message = f"Removed '{component_name}' from '{dish.name}'."
     if refreshed_count:
         message += f" Updated {refreshed_count} draft prep sheet(s)."
     messages.success(request, message)
-    return redirect("menu:dish_detail", pk=dish.pk)
+    return fallback_redirect
