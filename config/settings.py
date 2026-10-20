@@ -4,6 +4,7 @@ from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
+from django.contrib.messages import constants as message_constants
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
@@ -152,7 +153,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # every messages.error(...) call across the whole app renders as
 # alert-error: structurally a dismissible alert, but with zero color/
 # styling, since that class simply doesn't exist in Bootstrap's CSS.
-from django.contrib.messages import constants as message_constants
 MESSAGE_TAGS = {
     message_constants.ERROR: "danger",
 }

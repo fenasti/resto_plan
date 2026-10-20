@@ -406,11 +406,6 @@ def edit_dish_components(request, pk: int):
     dish = get_object_or_404(Dish, pk=pk, team=request.team)
     formset = DishComponentFormSet(request.POST or None, instance=dish)
 
-    # Filter component choices by team
-    for form in formset.forms:
-        if "component" in form.fields:
-            form.fields["component"].queryset = Component.objects.filter(team=request.team).order_by("name")
-
     if request.method == "POST" and formset.is_valid():
         formset.save()
         refreshed_count = _refresh_draft_plans_for_dish(dish)
@@ -418,7 +413,10 @@ def edit_dish_components(request, pk: int):
         if refreshed_count:
             message += f" Updated {refreshed_count} draft prep sheet(s)."
         messages.success(request, message)
-        return redirect("menu:dish_detail", pk=dish.pk)
+        # Stays here rather than bouncing to Dish Detail — Add and Remove
+        # (both on this same page) already do, and this page is meant to
+        # be the self-contained place to manage a dish's prep items now.
+        return redirect("menu:dish_components_edit", pk=dish.pk)
 
     quick_form = QuickComponentFormSet(form_kwargs={"team": request.team})
     return render(

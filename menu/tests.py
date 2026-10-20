@@ -331,15 +331,15 @@ class EditDishComponentsPreservesTaskStateTests(TestCase):
             "dish_components-MIN_NUM_FORMS": "0",
             "dish_components-MAX_NUM_FORMS": "1000",
             "dish_components-0-id": self.dc_a.id,
-            "dish_components-0-component": self.component_a.id,
             "dish_components-0-order": 1,
-            "dish_components-0-template_note": "",
             "dish_components-1-id": self.dc_b.id,
-            "dish_components-1-component": self.component_b.id,
             "dish_components-1-order": 2,
-            "dish_components-1-template_note": "cook 2 extra minutes",
         })
-        self.assertEqual(response.status_code, 302)
+        # Stays on Edit Prep Items rather than bouncing to Dish Detail —
+        # Add and Remove (both on this same page) already do, and this
+        # page is meant to be the self-contained place to manage a dish's
+        # prep items.
+        self.assertRedirects(response, url)
 
         task_a.refresh_from_db()
         self.assertEqual(task_a.status, PrepTask.TaskStatus.DONE)

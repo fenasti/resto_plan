@@ -1,4 +1,4 @@
-from .models import Team, TeamMembership
+from .models import TeamMembership
 
 class ActiveTeamMiddleware:
     """

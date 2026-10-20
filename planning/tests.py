@@ -842,17 +842,19 @@ class AdHocTasksSurviveSaveAndFinalizeTests(TestCase):
         # get_or_create_draft_plan already auto-selected this dish (it's
         # active) via ensure_default_plandishes, so no need to add it again.
         component = Component.objects.create(team=self.team, name="Broth")
+        dish_component = DishComponent.objects.create(dish=self.dish, component=component, order=1)
 
         self.client.post(reverse("menu:dish_components_edit", args=[self.dish.pk]), {
             "dish_components-TOTAL_FORMS": "1",
-            "dish_components-INITIAL_FORMS": "0",
+            "dish_components-INITIAL_FORMS": "1",
             "dish_components-MIN_NUM_FORMS": "0",
             "dish_components-MAX_NUM_FORMS": "1000",
-            "dish_components-0-component": component.id,
-            "dish_components-0-order": 1,
-            "dish_components-0-template_note": "",
+            "dish_components-0-id": dish_component.id,
+            "dish_components-0-order": 2,
         })
         self.assertEqual(self._adhoc_count(), 1)
+        dish_component.refresh_from_db()
+        self.assertEqual(dish_component.order, 2)
 
 
 class RecurringItemsInBuilderTests(TestCase):
