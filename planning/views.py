@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import ListView, TemplateView
 
@@ -29,6 +30,23 @@ def _hydrate_plan_progress(plan: PrepPlan) -> PrepPlan:
     plan._task_total = plan.tasks.count()
     plan._task_done = plan.tasks.filter(status=PrepTask.TaskStatus.DONE).count()
     return plan
+
+def _page_url_for_task_row(request, plan: PrepPlan) -> str:
+    """
+    task_row.html's recipe link uses this as its ?next= — never
+    request.get_full_path() directly, because this same partial is also
+    rendered as the response body to the tap/claim/note HTMX actions
+    themselves (task_tap_view etc.), where get_full_path() would be
+    "/plans/tasks/<id>/tap/" — the action endpoint's own URL, not the
+    page the user is actually looking at. Clicking Back from the recipe
+    page would then GET that POST-only endpoint and hit a bare 405.
+    HTMX always sends the real current-page URL in this header; the plan
+    sheet is a safe universal fallback for the rare case a request
+    reaches here without it (e.g. a non-HTMX client).
+    """
+    return request.headers.get("HX-Current-URL") or reverse(
+        "planning:plan_sheet", args=[str(plan.service_date)]
+    )
 
 def _require_active_team(request):
     if not request.team or not request.membership:
@@ -254,7 +272,12 @@ def task_tap_view(request, pk: int):
     return render(
         request,
         "planning/partials/task_row_response.html",
-        {"task": task, "groups": get_sheet_groups(task.plan), "extra_tasks": get_extra_tasks(task.plan)},
+        {
+            "task": task,
+            "groups": get_sheet_groups(task.plan),
+            "extra_tasks": get_extra_tasks(task.plan),
+            "page_url": _page_url_for_task_row(request, task.plan),
+        },
     )
 
 @login_required
@@ -271,7 +294,12 @@ def task_claim_view(request, pk: int):
     return render(
         request,
         "planning/partials/task_row_response.html",
-        {"task": task, "groups": get_sheet_groups(task.plan), "extra_tasks": get_extra_tasks(task.plan)},
+        {
+            "task": task,
+            "groups": get_sheet_groups(task.plan),
+            "extra_tasks": get_extra_tasks(task.plan),
+            "page_url": _page_url_for_task_row(request, task.plan),
+        },
     )
 
 @login_required
@@ -284,7 +312,11 @@ def task_note_view(request, pk: int):
 
     if request.method == "GET":
         note_edit = task.plan.state != PrepPlan.PlanState.COMPLETE
-        return render(request, "planning/partials/task_row.html", {"task": task, "note_edit": note_edit})
+        return render(
+            request,
+            "planning/partials/task_row.html",
+            {"task": task, "note_edit": note_edit, "page_url": _page_url_for_task_row(request, task.plan)},
+        )
 
     try:
         task = services.set_task_note(pk, request.POST.get("daily_note", ""), request.user)
@@ -296,7 +328,12 @@ def task_note_view(request, pk: int):
     return render(
         request,
         "planning/partials/task_row_response.html",
-        {"task": task, "groups": get_sheet_groups(task.plan), "extra_tasks": get_extra_tasks(task.plan)},
+        {
+            "task": task,
+            "groups": get_sheet_groups(task.plan),
+            "extra_tasks": get_extra_tasks(task.plan),
+            "page_url": _page_url_for_task_row(request, task.plan),
+        },
     )
 
 

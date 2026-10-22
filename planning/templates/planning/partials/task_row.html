@@ -19,7 +19,14 @@
       {% endif %}
 
       {% if task.linked_recipe_id %}
-        <a href="{% url 'menu:recipe_detail' task.linked_recipe_id %}?next={{ request.get_full_path|urlencode }}" class="task-control text-decoration-none" title="Recipe">
+        {# page_url is passed explicitly by the tap/claim/note HTMX action
+           views, since this same partial is also rendered as the direct
+           response to those POST-only endpoints — request.get_full_path
+           there would be the action's own URL, not the page being viewed,
+           sending "Back" on the recipe page into a bare 405. Falls back to
+           request.get_full_path for the normal full-page render, where
+           it's already correct. #}
+        <a href="{% url 'menu:recipe_detail' task.linked_recipe_id %}?next={{ page_url|default:request.get_full_path|urlencode }}" class="task-control text-decoration-none" title="Recipe">
           <i class="bi bi-journal-text"></i>
         </a>
       {% endif %}

@@ -1,5 +1,7 @@
 import datetime
+import re
 from unittest.mock import patch
+from urllib.parse import unquote
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -1336,6 +1338,97 @@ class TaskActionsOnMissingTaskReturn404Tests(TestCase):
         with patch("planning.services.remove_adhoc_task", side_effect=PrepTask.DoesNotExist):
             resp = self.client.post(reverse("planning:task_remove_adhoc", args=[task.id]))
         self.assertEqual(resp.status_code, 302)
+
+
+class TaskRowRecipeLinkNextParamTests(TestCase):
+    """
+    Reported bug: tapping/claiming a task, then clicking its recipe icon,
+    then clicking "Back" on the recipe page produced a bare error instead
+    of returning to the prep list. task_row.html's recipe link used
+    request.get_full_path() for its ?next= — correct when the partial is
+    rendered as part of a normal page, but this same partial is ALSO the
+    direct response body to the tap/claim/note POST-only endpoints
+    themselves. In that context get_full_path() is the action endpoint's
+    own URL (e.g. "/plans/tasks/68/tap/"), so the recipe page's Back
+    button pointed straight at a POST-only view — a GET there is a bare
+    405, with none of Django's usual error styling (hence "an error").
+    Not mobile-specific; reproducible on any device, HTMX request.
+
+    Fixed via the page_url context variable (planning/views.py), sourced
+    from HTMX's own HX-Current-URL request header — the one piece of
+    information that actually tells these action views what page the
+    user is really looking at.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cook", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000322", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team, role=TeamMembership.Role.OWNER)
+
+        recipe = Recipe.objects.create(team=self.team, name="Broth Recipe", ingredients_text="water")
+        component = Component.objects.create(team=self.team, name="Broth Prep", recipe=recipe)
+        dish = Dish.objects.create(team=self.team, name="Ramen")
+        DishComponent.objects.create(dish=dish, component=component, order=1)
+
+        self.plan = services.get_or_create_draft_plan(self.team, datetime.date(2026, 6, 1), self.user)
+        self.task = self.plan.tasks.first()
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def _recipe_link_next(self, response):
+        content = response.content.decode()
+        href_match = re.search(r'href="([^"]*)"\s+class="task-control[^"]*"\s+title="Recipe"', content)
+        self.assertIsNotNone(href_match, "recipe link not found in response")
+        href = href_match.group(1)
+        next_match = re.search(r"next=([^&\"]*)", href)
+        self.assertIsNotNone(next_match, f"no next= param in recipe href: {href}")
+        return unquote(next_match.group(1))
+
+    def test_tap_response_next_is_the_current_page_not_the_tap_endpoint(self):
+        current_url = f"http://testserver{reverse('planning:plan_builder', args=[str(self.plan.service_date)])}"
+        resp = self.client.post(
+            reverse("planning:task_tap", args=[self.task.id]), HTTP_HX_CURRENT_URL=current_url
+        )
+        next_value = self._recipe_link_next(resp)
+        self.assertEqual(next_value, current_url)
+        self.assertNotIn("/tap/", next_value)
+
+    def test_claim_response_next_is_the_current_page_not_the_claim_endpoint(self):
+        services.finalize_plan(self.plan, self.user)
+        current_url = f"http://testserver{reverse('planning:plan_sheet', args=[str(self.plan.service_date)])}"
+        resp = self.client.post(
+            reverse("planning:task_claim", args=[self.task.id]), HTTP_HX_CURRENT_URL=current_url
+        )
+        next_value = self._recipe_link_next(resp)
+        self.assertEqual(next_value, current_url)
+        self.assertNotIn("/claim/", next_value)
+
+    def test_note_get_response_next_is_the_current_page_not_the_note_endpoint(self):
+        current_url = f"http://testserver{reverse('planning:plan_builder', args=[str(self.plan.service_date)])}"
+        resp = self.client.get(
+            reverse("planning:task_note", args=[self.task.id]), HTTP_HX_CURRENT_URL=current_url
+        )
+        next_value = self._recipe_link_next(resp)
+        self.assertEqual(next_value, current_url)
+        self.assertNotIn("/note/", next_value)
+
+    def test_following_the_fixed_next_back_to_the_real_page_succeeds(self):
+        current_url = f"http://testserver{reverse('planning:plan_builder', args=[str(self.plan.service_date)])}"
+        resp = self.client.post(
+            reverse("planning:task_tap", args=[self.task.id]), HTTP_HX_CURRENT_URL=current_url
+        )
+        next_value = self._recipe_link_next(resp)
+        follow_up = self.client.get(next_value.replace("http://testserver", ""))
+        self.assertEqual(follow_up.status_code, 200)
+
+    def test_without_hx_current_url_falls_back_to_the_plan_sheet_not_the_tap_endpoint(self):
+        resp = self.client.post(reverse("planning:task_tap", args=[self.task.id]))
+        next_value = self._recipe_link_next(resp)
+        self.assertEqual(next_value, reverse("planning:plan_sheet", args=[str(self.plan.service_date)]))
+        self.assertNotIn("/tap/", next_value)
 
 
 class PrintPlanViewTests(TestCase):
