@@ -224,6 +224,16 @@ def task_claim(task_id: int, user) -> PrepTask:
         return task
 
     if task.assignee_id:
+        # The toggle only checks "is this claimed by *anyone*", so without
+        # this, any team member tapping another cook's name badge (visible
+        # to the whole team, labeled "tap to unclaim") silently strips
+        # that other person's claim — confirmed by a real multi-user
+        # simulation: two cooks racing to claim the same task left it
+        # unclaimed by either, because the second request saw "already
+        # claimed" and toggled it straight back off instead of being
+        # rejected.
+        if task.assignee_id != user.id:
+            raise PermissionError("Only the person who claimed this task can unclaim it.")
         task.assignee = None
         task.status = PrepTask.TaskStatus.NONE
     else:

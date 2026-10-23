@@ -1247,6 +1247,71 @@ class CompactClaimedStateControlTests(TestCase):
         self.assertEqual(self.task.assignee_id, assignee_before)
 
 
+class ClaimOwnershipTests(TestCase):
+    """
+    Found via a real multi-user simulation (6-8 person team, several
+    cooks hitting the same prep plan at once): task_claim's toggle only
+    checked "is this claimed by *anyone*", not "is it claimed by *me*".
+    Two cooks racing to claim the same task left it unclaimed by either —
+    the second request saw "already claimed" and toggled it straight back
+    off. Same root cause applies without any real race too: the claimed-
+    state badge shows the claimant's name to the whole team and is
+    labeled "tap to unclaim", with no check stopping a different person
+    from tapping it.
+    """
+
+    def setUp(self):
+        self.ana = User.objects.create_user(username="ana", password="x")
+        self.luis = User.objects.create_user(username="luis", password="x")
+        self.team = Team.objects.create(name="Kitchen", join_code="000311", created_by=self.ana)
+        TeamMembership.objects.create(user=self.ana, team=self.team, role=TeamMembership.Role.OWNER)
+        TeamMembership.objects.create(user=self.luis, team=self.team, role=TeamMembership.Role.MEMBER)
+
+        dish = Dish.objects.create(team=self.team, name="Ramen")
+        component = Component.objects.create(team=self.team, name="Broth")
+        DishComponent.objects.create(dish=dish, component=component, order=1)
+
+        self.plan = services.get_or_create_draft_plan(self.team, datetime.date(2026, 3, 5), self.ana)
+        services.finalize_plan(self.plan, self.ana)
+        self.task = PrepTask.objects.get(plan=self.plan, dish_component__component=component)
+
+    def _login(self, user):
+        self.client.force_login(user)
+        session = self.client.session
+        session["active_team_id"] = self.team.id
+        session.save()
+
+    def test_a_different_user_cannot_unclaim_someone_elses_claim(self):
+        self._login(self.ana)
+        self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.assignee_id, self.ana.id)
+
+        self._login(self.luis)
+        resp = self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        self.assertEqual(resp.status_code, 403)
+
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.assignee_id, self.ana.id, "ana's claim must survive luis's attempt")
+        self.assertEqual(self.task.status, PrepTask.TaskStatus.PLANNED)
+
+    def test_the_claimant_can_still_unclaim_their_own_task(self):
+        self._login(self.ana)
+        self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        resp = self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.task.refresh_from_db()
+        self.assertIsNone(self.task.assignee_id)
+        self.assertEqual(self.task.status, PrepTask.TaskStatus.NONE)
+
+    def test_an_unclaimed_task_can_still_be_claimed_by_anyone(self):
+        self._login(self.luis)
+        resp = self.client.post(reverse("planning:task_claim", args=[self.task.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.assignee_id, self.luis.id)
+
+
 class StateChangingViewsRejectGetTests(TestCase):
     """
     Code-review finding: erase_plan_view/reopen_plan_view had no
