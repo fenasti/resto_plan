@@ -219,6 +219,66 @@ class SelfServiceTeamCreationTests(TestCase):
         self.assertContains(resp, reverse("accounts:team_create"))
 
 
+class TeamSwitchTests(TestCase):
+    """
+    Reported bug: the navbar's "Switch" button (-> team_select) did
+    nothing but bounce straight back to the dashboard. Root cause:
+    dispatch() had an unconditional "if request.team: redirect home"
+    check — but request.team is *always* truthy when Switch is clicked,
+    since you're only ever shown that button while already in an active
+    team. The picker could never actually be reached.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="multi_team_cook", password="x")
+        self.team_a = Team.objects.create(name="Kitchen A", join_code="000500", created_by=self.user)
+        self.team_b = Team.objects.create(name="Kitchen B", join_code="000501", created_by=self.user)
+        TeamMembership.objects.create(user=self.user, team=self.team_a, role=TeamMembership.Role.OWNER)
+        TeamMembership.objects.create(user=self.user, team=self.team_b, role=TeamMembership.Role.OWNER)
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_team_id"] = self.team_a.id
+        session.save()
+
+    def test_switch_shows_the_picker_instead_of_bouncing_home(self):
+        resp = self.client.get(reverse("accounts:team_select"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Kitchen A")
+        self.assertContains(resp, "Kitchen B")
+
+    def test_picking_the_other_team_actually_switches_the_active_team(self):
+        resp = self.client.post(reverse("accounts:team_select"), {"team_id": self.team_b.id})
+        self.assertRedirects(resp, reverse("home:index"))
+        self.assertEqual(self.client.session["active_team_id"], self.team_b.id)
+
+    def test_single_team_user_with_no_active_team_still_auto_selects(self):
+        # The original "less friction" behavior (first login, nothing
+        # active yet) must still work for a user with just one team.
+        solo_user = User.objects.create_user(username="solo_cook", password="x")
+        TeamMembership.objects.create(user=solo_user, team=self.team_a, role=TeamMembership.Role.MEMBER)
+        self.client.force_login(solo_user)
+
+        resp = self.client.get(reverse("accounts:team_select"))
+        self.assertRedirects(resp, reverse("home:index"))
+        self.assertEqual(self.client.session["active_team_id"], self.team_a.id)
+
+    def test_single_team_user_who_is_already_active_still_sees_the_picker(self):
+        # Clicking Switch with only one team to begin with shouldn't
+        # silently bounce home either -- shows the (one-option) picker
+        # rather than pretending there was nothing to switch to.
+        solo_user = User.objects.create_user(username="solo_cook2", password="x")
+        TeamMembership.objects.create(user=solo_user, team=self.team_a, role=TeamMembership.Role.MEMBER)
+        self.client.force_login(solo_user)
+        session = self.client.session
+        session["active_team_id"] = self.team_a.id
+        session.save()
+
+        resp = self.client.get(reverse("accounts:team_select"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Kitchen A")
+
+
 class TeamAppearanceTests(TestCase):
     """
     display_name/accent_color are purely cosmetic: a fun name and a color

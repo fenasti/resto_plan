@@ -56,21 +56,24 @@ class TeamSelectView(LoginRequiredMixin, TemplateView):
         if not request.user.is_authenticated:
             return super().dispatch(request, *args, **kwargs)
 
-        # If a team is already active, go home
-        if request.team:
-            return redirect("home:index")
-
         memberships = TeamMembership.objects.filter(user=request.user).select_related("team")
 
-        # If user has exactly 1 team, auto-select it (less friction)
-        if memberships.count() == 1:
+        # If user has none, there's nothing to pick between.
+        if not memberships.exists():
+            return redirect("accounts:team_start")
+
+        # Auto-select only on a genuinely-no-active-team landing (first
+        # login, or an active team that no longer applies) — never when a
+        # team is already active, since that's exactly when this page is
+        # reached deliberately via the navbar's "Switch" button. The old
+        # "if request.team: redirect home" check fired on every single
+        # Switch click (you always have an active team when clicking it),
+        # so the picker could never actually be reached — Switch couldn't
+        # switch anything.
+        if memberships.count() == 1 and not request.team:
             request.session["active_team_id"] = memberships.first().team_id
             messages.success(request, "Workspace selected.")
             return redirect("home:index")
-
-        # If user has none:
-        if not memberships.exists():
-            return redirect("accounts:team_start")
 
         return super().dispatch(request, *args, **kwargs)
 
